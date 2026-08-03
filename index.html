@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f7f2e8" />
+  <meta name="description" content="Кулинарный ассистент подбирает до трёх рецептов по имеющимся продуктам, времени и количеству порций." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <title>Кулинарный ассистент</title>
+</head>
+<body>
+  <header class="app-header">
+    <button id="homeButton" class="header-home hidden" type="button">← На главную</button>
+    <span class="header-spacer" aria-hidden="true"></span>
+    <button id="favoritesButton" class="ghost-button compact-button" type="button">
+      Избранное <span id="favoriteCount">0</span>
+    </button>
+  </header>
+
+  <main id="app" class="app-shell" aria-live="polite">
+    <section id="homeView" class="view active">
+      <div class="hero">
+        <h1>Что можно приготовить сегодня?</h1>
+        <p>Выберите продукты, время и количество порций. Кулинарный ассистент предложит до трёх подходящих рецептов.</p>
+      </div>
+
+      <form id="searchForm" class="panel" novalidate>
+        <fieldset>
+          <legend>1. Какие продукты у вас есть?</legend>
+
+          <div class="ingredient-tools">
+            <label class="field-label" for="ingredientSearch">
+              Поиск продукта
+              <input id="ingredientSearch" type="search" placeholder="Начните вводить название" autocomplete="off" />
+            </label>
+            <label class="field-label" for="ingredientCategory">
+              Категория
+              <select id="ingredientCategory"></select>
+            </label>
+          </div>
+
+          <div id="ingredientChips" class="chip-grid" role="group" aria-label="Доступные продукты"></div>
+          <p id="emptyIngredientSearch" class="muted hidden">Ничего не найдено. Проверьте написание или выберите другую категорию.</p>
+
+          <div class="selected-box">
+            <div class="selected-heading">
+              <strong>Выбрано: <span id="selectedCount">0</span></strong>
+              <button id="clearIngredients" class="text-button" type="button">Очистить</button>
+            </div>
+            <div id="selectedChips" class="selected-chip-list">
+              <span class="muted">Пока ничего не выбрано.</span>
+            </div>
+          </div>
+        </fieldset>
+
+        <details class="pantry-box" open>
+          <summary>Базовые продукты и приправы</summary>
+          <p class="muted small-text">Отметьте то, что обычно есть дома. Эти позиции учитываются при подборе рецептов.</p>
+          <div id="pantryOptions" class="checkbox-grid"></div>
+        </details>
+
+        <details class="exclusion-box">
+          <summary>Есть продукты, которые не нужно использовать?</summary>
+          <p class="muted small-text">Добавьте нежелательные продукты. Для серьёзной пищевой аллергии не полагайтесь только на пробную версию ассистента.</p>
+          <div class="exclusion-controls">
+            <select id="excludeSelect" aria-label="Добавить исключаемый продукт"></select>
+            <button id="addExclusion" class="ghost-button" type="button">Исключить</button>
+          </div>
+          <div id="excludedChips" class="selected-chip-list"><span class="muted">Исключений нет.</span></div>
+        </details>
+
+        <fieldset>
+          <legend>2. Сколько времени есть?</legend>
+          <div class="segmented" role="radiogroup" aria-label="Максимальное время">
+            <label><input type="radio" name="maxTime" value="15" /> 15 мин</label>
+            <label><input type="radio" name="maxTime" value="30" /> 30 мин</label>
+            <label><input type="radio" name="maxTime" value="45" checked /> 45 мин</label>
+            <label><input type="radio" name="maxTime" value="60" /> 60 мин</label>
+          </div>
+        </fieldset>
+
+        <div class="two-column">
+          <label class="field-label">Порции
+            <select id="servings">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+            </select>
+          </label>
+          <label class="field-label">Сложность
+            <select id="difficulty">
+              <option value="any" selected>Любая</option>
+              <option value="easy">Простая</option>
+              <option value="medium">Средняя</option>
+            </select>
+          </label>
+        </div>
+
+        <fieldset class="selection-mode">
+          <legend>3. Как подбирать?</legend>
+          <label class="radio-card">
+            <input type="radio" name="shoppingMode" value="strict" checked />
+            <span><strong>Только из выбранных продуктов</strong><small>Допускаются базовые продукты, отмеченные выше.</small></span>
+          </label>
+          <label class="radio-card">
+            <input type="radio" name="shoppingMode" value="flexible" />
+            <span><strong>Можно добавить 1–2 продукта</strong><small>Ассистент покажет, что рекомендуется докупить или добавить.</small></span>
+          </label>
+        </fieldset>
+
+        <button class="primary-button full-width" type="submit">Подобрать рецепты</button>
+        <p id="formError" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="resultsView" class="view">
+      <button class="back-link" data-nav="home" type="button">← Изменить продукты</button>
+      <h2>Подходящие рецепты</h2>
+      <p id="resultContext" class="muted"></p>
+      <div id="resultsList" class="results-list"></div>
+    </section>
+
+    <section id="recipeView" class="view">
+      <button class="back-link" data-nav="results" type="button">← К результатам</button>
+      <article id="recipeCard"></article>
+    </section>
+
+    <section id="cookingView" class="view">
+      <button class="back-link" data-nav="recipe" type="button">← К рецепту</button>
+      <div id="cookingMode"></div>
+    </section>
+
+    <section id="favoritesView" class="view">
+      <button class="back-link" data-nav="home" type="button">← На главную</button>
+      <h2>Избранное</h2>
+      <div id="favoritesList" class="results-list"></div>
+    </section>
+  </main>
+
+  <dialog id="feedbackDialog">
+    <form id="feedbackForm" class="feedback-form">
+      <h2>Как получилось?</h2>
+      <label class="field-label">Оценка результата
+        <select id="rating" required>
+          <option value="">Выберите</option>
+          <option value="5">5 — отлично</option>
+          <option value="4">4 — хорошо</option>
+          <option value="3">3 — средне</option>
+          <option value="2">2 — плохо</option>
+          <option value="1">1 — не получилось</option>
+        </select>
+      </label>
+      <label class="field-label">Фактическое время, минут
+        <input id="actualTime" type="number" min="1" max="300" required />
+      </label>
+      <label class="field-label">Что было непонятно или неудобно?
+        <textarea id="problemText" rows="4" placeholder="Можно оставить пустым"></textarea>
+      </label>
+      <label class="checkbox-row"><input id="wouldReturn" type="checkbox" checked /> Использовал(а) бы ассистент снова</label>
+      <div class="dialog-actions">
+        <button id="cancelFeedback" type="button" class="ghost-button">Отмена</button>
+        <button id="sendFeedback" type="submit" class="primary-button">Отправить через WhatsApp</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="data/ingredients.js"></script>
+  <script src="data/recipes.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
