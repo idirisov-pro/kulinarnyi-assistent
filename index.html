@@ -14,9 +14,13 @@
   <header class="app-header">
     <button id="homeButton" class="header-home hidden" type="button">← На главную</button>
     <span class="header-spacer" aria-hidden="true"></span>
-    <button id="favoritesButton" class="ghost-button compact-button" type="button">
-      Избранное <span id="favoriteCount">0</span>
-    </button>
+    <div class="header-actions">
+      <button id="testFeedbackButton" class="ghost-button compact-button" type="button">Проверка приложения</button>
+      <button id="historyButton" class="ghost-button compact-button" type="button">История</button>
+      <button id="favoritesButton" class="ghost-button compact-button" type="button">
+        Избранное <span id="favoriteCount">0</span>
+      </button>
+    </div>
   </header>
 
   <main id="app" class="app-shell" aria-live="polite">
@@ -24,11 +28,13 @@
       <div class="hero">
         <h1>Что можно приготовить сегодня?</h1>
         <p>Выберите продукты, время и количество порций. Кулинарный ассистент предложит до трёх подходящих рецептов.</p>
+        <p class="alpha-notice"><strong>Версия 3.0-preview.3.</strong> Готовьте выбранное блюдо и отправляйте отзыв после завершения — результат поможет улучшать рецепт и приложение. «Проверен редакционно» ещё не означает, что рецепт подтверждён клиентами. Не используйте ассистент как единственный источник при серьёзной пищевой аллергии.</p>
       </div>
 
       <form id="searchForm" class="panel" novalidate>
         <fieldset>
           <legend>1. Какие продукты у вас есть?</legend>
+          <p class="muted small-text">Выберите продукты из одной или нескольких категорий. Уже выбранные продукты сохраняются при переключении категории.</p>
 
           <div class="ingredient-tools">
             <label class="field-label" for="ingredientSearch">
@@ -36,10 +42,12 @@
               <input id="ingredientSearch" type="search" placeholder="Начните вводить название" autocomplete="off" />
             </label>
             <label class="field-label" for="ingredientCategory">
-              Категория
+              Показывать продукты
               <select id="ingredientCategory"></select>
             </label>
           </div>
+
+          <p class="category-hint"><strong>Важно:</strong> категория только помогает найти продукты в списке и не ограничивает виды предлагаемых блюд. Подбор выполняется по всем выбранным продуктам.</p>
 
           <div id="ingredientChips" class="chip-grid" role="group" aria-label="Доступные продукты"></div>
           <p id="emptyIngredientSearch" class="muted hidden">Ничего не найдено. Проверьте написание или выберите другую категорию.</p>
@@ -47,11 +55,12 @@
           <div class="selected-box">
             <div class="selected-heading">
               <strong>Выбрано: <span id="selectedCount">0</span></strong>
-              <button id="clearIngredients" class="text-button" type="button">Очистить</button>
+              <button id="clearIngredients" class="clear-button" type="button">× Очистить выбор</button>
             </div>
             <div id="selectedChips" class="selected-chip-list">
               <span class="muted">Пока ничего не выбрано.</span>
             </div>
+            <p id="kitchenSaveStatus" class="save-status" aria-live="polite">Выбор сохраняется только на этом устройстве.</p>
           </div>
         </fieldset>
 
@@ -140,13 +149,25 @@
       <h2>Избранное</h2>
       <div id="favoritesList" class="results-list"></div>
     </section>
+
+    <section id="historyView" class="view">
+      <button class="back-link" data-nav="home" type="button">← На главную</button>
+      <div class="section-heading-row">
+        <div>
+          <h2>История</h2>
+          <p class="muted">Последние подборы и завершённые приготовления хранятся только на этом устройстве.</p>
+        </div>
+        <button id="clearHistoryButton" class="ghost-button" type="button">Очистить историю</button>
+      </div>
+      <div id="historyList" class="history-list"></div>
+    </section>
   </main>
 
   <dialog id="feedbackDialog">
     <form id="feedbackForm" class="feedback-form">
-      <h2>Как получилось?</h2>
-      <label class="field-label">Оценка результата
-        <select id="rating" required>
+      <h2 id="feedbackTitle">Проверка работы приложения</h2>
+      <label class="field-label">Оценка результата (необязательно)
+        <select id="rating">
           <option value="">Выберите</option>
           <option value="5">5 — отлично</option>
           <option value="4">4 — хорошо</option>
@@ -155,11 +176,11 @@
           <option value="1">1 — не получилось</option>
         </select>
       </label>
-      <label class="field-label">Фактическое время, минут
-        <input id="actualTime" type="number" min="1" max="300" required />
+      <label class="field-label">Фактическое время, если готовили
+        <input id="actualTime" type="number" min="1" max="300" />
       </label>
-      <label class="field-label">Что было непонятно или неудобно?
-        <textarea id="problemText" rows="4" placeholder="Можно оставить пустым"></textarea>
+      <label class="field-label">Что понравилось, что было непонятно или не сработало?
+        <textarea id="problemText" rows="5" required placeholder="Напишите хотя бы одно наблюдение"></textarea>
       </label>
       <label class="checkbox-row"><input id="wouldReturn" type="checkbox" checked /> Использовал(а) бы ассистент снова</label>
       <div class="dialog-actions">
