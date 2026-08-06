@@ -1,4 +1,5 @@
 window.INGREDIENT_CATEGORIES = [
+  { id: 'all', name: 'Все продукты' },
   { id: 'common', name: 'Часто используемые' },
   { id: 'meat', name: 'Мясо и птица' },
   { id: 'dairy', name: 'Молочные продукты и яйца' },

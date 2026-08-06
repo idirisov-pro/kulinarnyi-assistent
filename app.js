@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const BUILD_VERSION = '3.0-preview.3';
+
   const state = {
     selectedIngredients: new Set(),
     excludedIngredients: new Set(),
@@ -13,7 +15,9 @@
     remainingSeconds: 0,
     wakeLock: null,
     lastSessionCode: createSessionCode(),
-    currentView: 'home'
+    currentView: 'home',
+    feedbackSource: 'general',
+    lastDiagnostics: []
   };
 
   const views = [...document.querySelectorAll('.view')];
@@ -33,6 +37,10 @@
   const emptyIngredientSearch = document.getElementById('emptyIngredientSearch');
   const excludeSelect = document.getElementById('excludeSelect');
   const excludedChips = document.getElementById('excludedChips');
+  const testFeedbackButton = document.getElementById('testFeedbackButton');
+  const feedbackTitle = document.getElementById('feedbackTitle');
+  const historyList = document.getElementById('historyList');
+  const kitchenSaveStatus = document.getElementById('kitchenSaveStatus');
 
   const allIngredients = [
     ...window.INGREDIENTS,
@@ -51,6 +59,36 @@
     } catch {
       localStorage.removeItem(key);
       return [];
+    }
+  }
+
+  function saveKitchen() {
+    const kitchen = {
+      selected:[...state.selectedIngredients],
+      excluded:[...state.excludedIngredients],
+      pantry:[...state.pantryIngredients]
+    };
+    localStorage.setItem('ka_kitchen_v3',JSON.stringify(kitchen));
+    if (kitchenSaveStatus) {
+      kitchenSaveStatus.textContent = 'Моя кухня сохранена на этом устройстве.';
+      window.clearTimeout(saveKitchen.statusTimer);
+      saveKitchen.statusTimer = window.setTimeout(() => {
+        kitchenSaveStatus.textContent = 'Выбор сохраняется только на этом устройстве.';
+      },1800);
+    }
+  }
+
+  function restoreKitchen() {
+    try {
+      const kitchen = JSON.parse(localStorage.getItem('ka_kitchen_v3') || 'null');
+      if (!kitchen || typeof kitchen !== 'object') return;
+      const validIngredients = new Set(window.INGREDIENTS.map(item => item.id));
+      const validPantry = new Set(window.PANTRY_INGREDIENTS.map(item => item.id));
+      state.selectedIngredients = new Set((kitchen.selected || []).filter(id => validIngredients.has(id)));
+      state.excludedIngredients = new Set((kitchen.excluded || []).filter(id => validIngredients.has(id) && !state.selectedIngredients.has(id)));
+      state.pantryIngredients = new Set((kitchen.pantry || []).filter(id => validPantry.has(id)));
+    } catch {
+      localStorage.removeItem('ka_kitchen_v3');
     }
   }
 
@@ -91,6 +129,7 @@
     pantryOptions.querySelectorAll('[data-pantry-id]').forEach(input => {
       input.addEventListener('change', () => {
         input.checked ? state.pantryIngredients.add(input.dataset.pantryId) : state.pantryIngredients.delete(input.dataset.pantryId);
+        saveKitchen();
       });
     });
   }
@@ -110,6 +149,7 @@
       renderIngredients();
       renderSelectedIngredients();
       renderExcludedIngredients();
+      saveKitchen();
     });
   }
 
@@ -127,6 +167,8 @@
       button.addEventListener('click', () => {
         state.excludedIngredients.delete(button.dataset.includeId);
         renderExcludedIngredients();
+        renderIngredients();
+        saveKitchen();
       });
     });
   }
@@ -141,7 +183,13 @@
     const query = search.value.trim().toLowerCase();
     const selectedCategory = categorySelect.value;
     const matches = window.INGREDIENTS.filter(item => {
-      const categoryMatches = query ? true : (selectedCategory === 'common' ? item.common : item.category === selectedCategory);
+      const categoryMatches = query
+        ? true
+        : selectedCategory === 'all'
+          ? true
+          : selectedCategory === 'common'
+            ? item.common
+            : item.category === selectedCategory;
       return categoryMatches && ingredientMatchesQuery(item, query);
     });
 
@@ -159,10 +207,19 @@
   }
 
   function toggleIngredient(id) {
-    if (state.excludedIngredients.has(id)) state.excludedIngredients.delete(id);
-    state.selectedIngredients.has(id) ? state.selectedIngredients.delete(id) : state.selectedIngredients.add(id);
+    const wasExcluded = state.excludedIngredients.has(id);
+    if (wasExcluded) {
+      state.excludedIngredients.delete(id);
+      state.selectedIngredients.add(id);
+      renderExcludedIngredients();
+    } else if (state.selectedIngredients.has(id)) {
+      state.selectedIngredients.delete(id);
+    } else {
+      state.selectedIngredients.add(id);
+    }
     renderIngredients();
     renderSelectedIngredients();
+    saveKitchen();
   }
 
   function renderSelectedIngredients() {
@@ -197,15 +254,7 @@
     return recipe.substitutions.find(sub => sub.from === ingredientId && available.has(sub.to) && !state.excludedIngredients.has(sub.to)) || null;
   }
 
-  function evaluateRecipe(recipe, maxTime, difficulty, mode) {
-    if (recipe.totalMinutes > maxTime) return null;
-    if (difficulty !== 'any' && recipe.difficulty !== difficulty) return null;
-
-    const blocked = recipe.ingredients.some(ingredient =>
-      state.excludedIngredients.has(ingredient.id) && ingredient.role !== 'recommended'
-    );
-    if (blocked) return null;
-
+  function analyzeRecipe(recipe, maxTime, difficulty, mode) {
     const available = getAvailableSet();
     const statuses = recipe.ingredients.map(ingredient => {
       if (available.has(ingredient.id)) return { ingredient, status: ingredient.role === 'pantry' ? 'pantry' : 'available', substitution:null };
@@ -214,16 +263,58 @@
       return { ingredient, status:'missing', substitution:null };
     });
 
+    const blockedItems = recipe.ingredients.filter(ingredient =>
+      state.excludedIngredients.has(ingredient.id) && ingredient.role !== 'recommended'
+    );
     const missingCritical = statuses.filter(item => item.status === 'missing' && item.ingredient.role === 'critical');
     const missingRequired = statuses.filter(item => item.status === 'missing' && item.ingredient.role === 'required');
     const missingPantry = statuses.filter(item => item.status === 'missing' && item.ingredient.role === 'pantry');
     const missingRecommended = statuses.filter(item => item.status === 'missing' && item.ingredient.role === 'recommended');
-
-    if (missingCritical.length > 0) return null;
     const requiredAdditions = missingRequired.length + missingPantry.length;
-    if (mode === 'strict' && requiredAdditions > 0) return null;
-    if (mode === 'flexible' && requiredAdditions > 2) return null;
+    const blockers = [];
 
+    if (recipe.totalMinutes > maxTime) blockers.push(`нужно около ${recipe.totalMinutes} минут, выбран лимит ${maxTime}`);
+    if (difficulty !== 'any' && recipe.difficulty !== difficulty) blockers.push(`сложность рецепта — ${difficultyName(recipe.difficulty)}`);
+    if (blockedItems.length) blockers.push(`исключены продукты: ${blockedItems.map(item => ingredientName(item.id)).join(', ')}`);
+    if (missingCritical.length) blockers.push(`нет основного продукта: ${missingCritical.map(item => ingredientName(item.ingredient.id)).join(', ')}`);
+    if (mode === 'strict' && requiredAdditions > 0) blockers.push(`нужно добавить: ${[...missingRequired,...missingPantry].map(item => ingredientName(item.ingredient.id)).join(', ')}`);
+    if (mode === 'flexible' && requiredAdditions > 2) blockers.push(`нужно добавить ${requiredAdditions} обязательных продуктов, разрешено не более двух`);
+
+    const possibleSubstitutions = statuses
+      .filter(item => item.status === 'missing')
+      .flatMap(item => recipe.substitutions
+        .filter(sub => sub.from === item.ingredient.id && !state.excludedIngredients.has(sub.to))
+        .map(sub => ({ from:sub.from, to:sub.to, note:sub.note })));
+
+    const totalWeight = statuses.reduce((sum,item) => sum + roleWeight(item.ingredient.role),0);
+    const coveredWeight = statuses.reduce((sum,item) => {
+      if (item.status === 'available' || item.status === 'pantry') return sum + roleWeight(item.ingredient.role);
+      if (item.status === 'substituted') return sum + roleWeight(item.ingredient.role) * .9;
+      return sum;
+    },0);
+    const closeness = totalWeight ? coveredWeight / totalWeight : 0;
+
+    return {
+      recipe,
+      statuses,
+      blockedItems,
+      missingCritical,
+      missingRequired,
+      missingPantry,
+      missingRecommended,
+      requiredAdditions,
+      blockers,
+      possibleSubstitutions,
+      closeness,
+      eligible:blockers.length === 0
+    };
+  }
+
+  function evaluateRecipe(recipe, maxTime, difficulty, mode) {
+    const analysis = analyzeRecipe(recipe,maxTime,difficulty,mode);
+    if (!analysis.eligible) return null;
+
+    const { statuses, missingCritical, missingRequired, missingPantry, missingRecommended, requiredAdditions } = analysis;
     const totalWeight = statuses.reduce((sum,item) => sum + roleWeight(item.ingredient.role),0);
     const coveredWeight = statuses.reduce((sum,item) => {
       if (item.status === 'available' || item.status === 'pantry') return sum + roleWeight(item.ingredient.role);
@@ -244,21 +335,22 @@
     if (requiredAdditions === 0) reasons.push('Все обязательные продукты есть');
     else reasons.push(`Нужно добавить: ${[...missingRequired,...missingPantry].map(item => ingredientName(item.ingredient.id)).join(', ')}`);
 
-    return {
-      recipe,
-      score,
-      statuses,
-      missingCritical,
-      missingRequired,
-      missingPantry,
-      missingRecommended,
-      requiredAdditions,
-      reasons
-    };
+    return { ...analysis, score, reasons };
   }
 
   function difficultyName(value) {
     return value === 'easy' ? 'простая' : value === 'medium' ? 'средняя' : value;
+  }
+
+  function editorialStatusView(recipe) {
+    const status = recipe.editorial?.status || 'draft';
+    const views = {
+      draft:{ label:'Черновик', className:'editorial-draft', description:'Рецепт ещё проходит редакционную проверку.' },
+      reviewed:{ label:'Проверен редакционно', className:'editorial-reviewed', description:'Структура и безопасность проверены; фактическое приготовление ещё не подтверждено.' },
+      cooked:{ label:'Приготовлен', className:'editorial-cooked', description:'Рецепт приготовлен по текущей версии; ожидает итогового утверждения.' },
+      approved:{ label:'Утверждён', className:'editorial-approved', description:'Рецепт прошёл фактическое приготовление и итоговую проверку.' }
+    };
+    return views[status] || views.draft;
   }
 
   function portionsLabel(number) {
@@ -289,7 +381,13 @@
       .sort((a,b) => b.score - a.score)
       .slice(0,3);
 
-    resultContext.textContent = `${state.selectedIngredients.size} основных продуктов · до ${maxTime} минут · ${portionsLabel(servings)}`;
+    state.lastDiagnostics = window.RECIPES
+      .map(recipe => analyzeRecipe(recipe,maxTime,difficulty,mode))
+      .filter(item => !item.eligible)
+      .sort((a,b) => b.closeness - a.closeness)
+      .slice(0,3);
+
+    resultContext.textContent = `${state.selectedIngredients.size} основных продуктов из всех выбранных категорий · до ${maxTime} минут · ${portionsLabel(servings)}`;
     renderResults(state.results,resultsList);
     recordHistory({
       type:'search',
@@ -314,13 +412,35 @@
 
   function renderResults(items,container) {
     if (!items.length) {
+      const diagnostics = state.lastDiagnostics.slice(0,2);
+      const diagnosticHtml = diagnostics.length ? `
+        <div class="diagnostic-list">
+          <strong>Почему ближайшие варианты не показаны</strong>
+          ${diagnostics.map(item => {
+            const missing = [...item.missingCritical,...item.missingRequired,...item.missingPantry]
+              .map(status => ingredientName(status.ingredient.id));
+            const substitutions = item.possibleSubstitutions
+              .map(sub => `${ingredientName(sub.from)} → ${ingredientName(sub.to)}`);
+            return `<div class="diagnostic-item">
+              <b>${escapeHtml(item.recipe.title)}</b>
+              ${missing.length ? `<span>Не хватает: ${escapeHtml(missing.join(', '))}.</span>` : ''}
+              ${item.blockers.length ? `<span>${escapeHtml(item.blockers.join('; '))}.</span>` : ''}
+              ${substitutions.length ? `<span>Возможные замены: ${escapeHtml(substitutions.join(', '))}.</span>` : ''}
+            </div>`;
+          }).join('')}
+        </div>` : '';
       container.innerHTML = `
         <div class="empty-state panel">
-          <strong>Подходящих рецептов не найдено.</strong>
-          <p>Попробуйте увеличить время, выбрать ещё один основной продукт или разрешить добавление 1–2 продуктов.</p>
-          <button class="primary-button" type="button" data-empty-home>Изменить параметры</button>
+          <strong>Подходящих рецептов пока не найдено.</strong>
+          <p>Ниже показаны конкретные причины. Измените продукты, увеличьте время или разрешите добавить 1–2 позиции.</p>
+          ${diagnosticHtml}
+          <div class="empty-actions">
+            <button class="primary-button" type="button" data-empty-home>Изменить параметры</button>
+            <button class="ghost-button" type="button" data-empty-feedback>Сообщить о проблеме</button>
+          </div>
         </div>`;
       container.querySelector('[data-empty-home]').addEventListener('click',() => showView('home'));
+      container.querySelector('[data-empty-feedback]').addEventListener('click',() => openFeedback('general'));
       return;
     }
 
@@ -329,6 +449,7 @@
       const additions = requiredAdditionNames(item);
       const recommended = recommendedNames(item);
       const ready = additions.length === 0;
+      const editorial = editorialStatusView(item.recipe);
       return `
         <article class="result-card">
           <div class="recipe-title-row">
@@ -339,6 +460,7 @@
             <span>${item.recipe.totalMinutes} мин</span>
             <span>${difficultyName(item.recipe.difficulty)}</span>
             <span>${portionsLabel(selectedServings)}</span>
+            <span class="editorial-badge ${editorial.className}" title="${escapeHtml(editorial.description)}">${escapeHtml(editorial.label)}</span>
           </div>
           <ul class="reasons">${item.reasons.map(reason => `<li>${escapeHtml(reason)}</li>`).join('')}</ul>
           ${additions.length ? `<p class="add-note"><strong>Перед приготовлением добавьте:</strong> ${escapeHtml(additions.join(', '))}.</p>` : ''}
@@ -410,6 +532,7 @@
     const additions = requiredAdditionNames(evaluation);
     const recommended = recommendedNames(evaluation);
     const criticalMissing = evaluation.missingCritical.map(item => ingredientName(item.ingredient.id));
+    const editorial = editorialStatusView(recipe);
 
     let availabilityClass = '';
     let availabilityTitle = 'Можно начинать готовить';
@@ -436,7 +559,9 @@
           <span>${recipe.totalMinutes} мин всего</span>
           <span>${portionsLabel(selectedServings)}</span>
           <span>${difficultyName(recipe.difficulty)}</span>
+          <span class="editorial-badge ${editorial.className}">${escapeHtml(editorial.label)}</span>
         </div>
+        <p class="editorial-note"><strong>Статус рецепта:</strong> ${escapeHtml(editorial.description)} Версия ${escapeHtml(recipe.editorial?.version || '0.1-draft')}${recipe.editorial?.batch ? ` · партия ${escapeHtml(recipe.editorial.batch)}` : ''}.</p>
         <div class="availability-box ${availabilityClass}">
           <strong>${escapeHtml(availabilityTitle)}</strong>
           <span>${escapeHtml(availabilityDetails)}</span>
@@ -521,9 +646,13 @@
     const step = recipe.steps[state.currentStep];
     if (!step) return;
     state.remainingSeconds = step.minutes * 60;
+    const progress = Math.round(((state.currentStep + 1) / recipe.steps.length) * 100);
     cookingMode.innerHTML = `
       <div class="cooking-panel">
         <p class="step-counter">Шаг ${state.currentStep + 1} из ${recipe.steps.length}</p>
+        <div class="progress-track" role="progressbar" aria-label="Прогресс приготовления" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}">
+          <span style="width:${progress}%"></span>
+        </div>
         <h1>${escapeHtml(recipe.title)}</h1>
         <p class="cooking-step">${escapeHtml(step.text)}</p>
         <div id="timerDisplay" class="timer">${formatSeconds(state.remainingSeconds)}</div>
@@ -549,7 +678,7 @@
       } else {
         await releaseWakeLock();
         recordHistory({ type:'cooking_completed',at:new Date().toISOString(),recipe:recipe.id,session:state.lastSessionCode });
-        feedbackDialog.showModal();
+        openFeedback('cooking');
       }
     });
   }
@@ -614,20 +743,78 @@
     localStorage.setItem('ka_history',JSON.stringify(historyItems.slice(-150)));
   }
 
+  function historyEventTitle(event) {
+    if (event.type === 'cooking_completed') return 'Приготовлено';
+    if (event.type === 'recipe_opened') return 'Открыт рецепт';
+    if (event.type === 'search') return 'Выполнен подбор';
+    if (event.type === 'feedback_ready') return 'Подготовлен отзыв';
+    return 'Действие';
+  }
+
+  function historyEventDetails(event) {
+    if (event.recipe) {
+      const recipe = window.RECIPES.find(item => item.id === event.recipe);
+      return recipe?.title || event.recipe;
+    }
+    if (event.type === 'search') {
+      const names = (event.ingredients || []).slice(0,4).map(ingredientName);
+      const extra = (event.ingredients || []).length > 4 ? ` и ещё ${(event.ingredients || []).length - 4}` : '';
+      return names.length ? `${names.join(', ')}${extra}` : 'Без выбранных продуктов';
+    }
+    return '';
+  }
+
+  function formatHistoryDate(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Intl.DateTimeFormat('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(date);
+  }
+
+  function showHistory() {
+    const events = safeStorageArray('ka_history')
+      .filter(event => ['search','recipe_opened','cooking_completed','feedback_ready'].includes(event.type))
+      .slice(-30)
+      .reverse();
+    if (!events.length) {
+      historyList.innerHTML = '<div class="empty-state panel"><strong>История пока пуста.</strong><p>Здесь появятся подборы, открытые рецепты и завершённые приготовления.</p></div>';
+    } else {
+      historyList.innerHTML = events.map(event => `
+        <article class="history-item">
+          <div><strong>${escapeHtml(historyEventTitle(event))}</strong><span>${escapeHtml(historyEventDetails(event))}</span></div>
+          <time>${escapeHtml(formatHistoryDate(event.at))}</time>
+        </article>`).join('');
+    }
+    showView('history');
+  }
+
+  function clearHistory() {
+    if (!window.confirm('Очистить историю на этом устройстве?')) return;
+    localStorage.removeItem('ka_history');
+    showHistory();
+  }
+
+  function openFeedback(source = 'general') {
+    state.feedbackSource = source;
+    feedbackTitle.textContent = source === 'cooking' ? 'Как получилось блюдо?' : 'Проверка работы приложения';
+    feedbackDialog.showModal();
+  }
+
   function sendFeedback(event) {
     event.preventDefault();
     const rating = document.getElementById('rating').value;
     const actualTime = document.getElementById('actualTime').value;
-    if (!rating || !actualTime) {
+    const problem = document.getElementById('problemText').value.trim();
+    if (!problem) {
       document.getElementById('feedbackForm').reportValidity();
       return;
     }
-    const problem = document.getElementById('problemText').value.trim() || 'нет';
     const wouldReturn = document.getElementById('wouldReturn').checked ? 'да' : 'нет';
     const shown = state.results.map(item => item.recipe.id).join(', ') || 'избранное';
     const additions = state.currentEvaluation ? requiredAdditionNames(state.currentEvaluation).join(', ') || 'не требовались' : 'не указано';
     const text = [
-      'Тест кулинарного ассистента',
+      'Обратная связь — кулинарный ассистент',
+      `Версия: ${BUILD_VERSION}`,
+      `Тип проверки: ${state.feedbackSource === 'cooking' ? 'клиент приготовил блюдо' : 'ручная проверка приложения'}`,
       `Код сессии: ${state.lastSessionCode}`,
       `Дата: ${new Date().toLocaleDateString('ru-RU')}`,
       `Выбранные продукты: ${[...state.selectedIngredients].map(ingredientName).join(', ')}`,
@@ -635,17 +822,18 @@
       `Показаны рецепты: ${shown}`,
       `Выбран рецепт: ${state.currentRecipe?.id || 'не указан'}`,
       `Рекомендовано добавить: ${additions}`,
-      'Начал(а) готовить: да',
-      'Приготовил(а): да',
-      `Оценка: ${rating}/5`,
-      `Фактическое время: ${actualTime} минут`,
+      `Нашёлся рецепт: ${state.results.length ? 'да' : 'нет'}`,
+      `Начал(а) готовить: ${state.feedbackSource === 'cooking' ? 'да' : 'не указано'}`,
+      `Приготовил(а): ${state.feedbackSource === 'cooking' ? 'да' : 'не указано'}`,
+      `Оценка: ${rating ? `${rating}/5` : 'не указана'}`,
+      `Фактическое время: ${actualTime ? `${actualTime} минут` : 'не указано'}`,
       `Проблема: ${problem}`,
       `Использовал(а) бы снова: ${wouldReturn}`
     ].join('\n');
 
     recordHistory({
       type:'feedback_ready',at:new Date().toISOString(),recipe:state.currentRecipe?.id,
-      rating:Number(rating),actualTime:Number(actualTime),wouldReturn,session:state.lastSessionCode
+      rating:rating ? Number(rating) : null,actualTime:actualTime ? Number(actualTime) : null,wouldReturn,session:state.lastSessionCode
     });
     feedbackDialog.close();
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`,'_blank','noopener');
@@ -665,6 +853,7 @@
     state.selectedIngredients.clear();
     renderIngredients();
     renderSelectedIngredients();
+    saveKitchen();
   });
   document.querySelectorAll('[data-nav]').forEach(button => button.addEventListener('click',() => {
     const target = button.dataset.nav;
@@ -673,6 +862,9 @@
   }));
   homeButton.addEventListener('click',() => showView('home'));
   document.getElementById('favoritesButton').addEventListener('click',showFavorites);
+  document.getElementById('historyButton').addEventListener('click',showHistory);
+  document.getElementById('clearHistoryButton').addEventListener('click',clearHistory);
+  testFeedbackButton.addEventListener('click',() => openFeedback('general'));
   document.getElementById('feedbackForm').addEventListener('submit',sendFeedback);
   document.getElementById('cancelFeedback').addEventListener('click',() => feedbackDialog.close());
   document.addEventListener('visibilitychange',() => {
@@ -681,6 +873,10 @@
 
   initializeCategories();
   initializePantry();
+  restoreKitchen();
+  pantryOptions.querySelectorAll('[data-pantry-id]').forEach(input => {
+    input.checked = state.pantryIngredients.has(input.dataset.pantryId);
+  });
   initializeExclusions();
   renderExcludedIngredients();
   renderIngredients();
