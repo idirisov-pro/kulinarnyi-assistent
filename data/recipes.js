@@ -375,3 +375,33 @@ window.RECIPES = [
     ], safety:'Используйте только свежие культурные грибы из надёжного источника. Шампиньоны должны быть полностью приготовлены.'
   }
 ];
+
+// Редакционный контур 3.0: первые 10 рецептов прошли кабинетную
+// проверку структуры и переданы в партию B1 для фактического приготовления.
+// Статусы cooked/approved выставляются только после заполнения журнала проверки.
+const EDITORIAL_BATCH_B1 = new Set([
+  'buckwheat_chicken',
+  'chicken_rice',
+  'chicken_potato',
+  'beef_potato_stew',
+  'lamb_rice',
+  'pasta_minced_beef',
+  'cabbage_minced',
+  'chicken_cutlets',
+  'omelet_cheese',
+  'omelet_sausage'
+]);
+
+window.RECIPES = window.RECIPES.map(recipe => {
+  const inBatch = EDITORIAL_BATCH_B1.has(recipe.id);
+  return {
+    ...recipe,
+    editorial: {
+      version: inBatch ? '1.0-review' : '0.1-draft',
+      status: inBatch ? 'reviewed' : 'draft',
+      batch: inBatch ? 'B1' : null,
+      cookedAt: null,
+      approvedAt: null
+    }
+  };
+});
