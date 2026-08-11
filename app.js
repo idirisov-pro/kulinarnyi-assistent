@@ -754,6 +754,8 @@
     const selectedServings = settings.servings;
     const factor = selectedServings / recipe.servings;
     const additions = requiredAdditionNames(evaluation);
+    const hasMissingRequired = additions.length > 0;
+    const timeMismatch = recipe.totalMinutes > settings.maxTime;
     const recommended = recommendedNames(evaluation);
     const criticalMissing = evaluation.missingCritical.map(item => ingredientName(item.ingredient.id));
     const editorial = editorialStatusView(recipe);
@@ -769,7 +771,12 @@
       availabilityClass = 'warning-state';
       availabilityTitle = 'Перед приготовлением проверьте продукты';
       availabilityDetails = `Нужно добавить: ${additions.join(', ')}.`;
+    } else if (timeMismatch) {
+      availabilityClass = 'warning-state';
+      availabilityTitle = 'Рецепту нужно больше времени';
+      availabilityDetails = `Нужно около ${recipe.totalMinutes} минут, а в подборе был выбран лимит ${settings.maxTime} минут.`;
     }
+    if (timeMismatch && hasMissingRequired) availabilityDetails += ` Также нужно около ${recipe.totalMinutes} минут вместо выбранных ${settings.maxTime}.`;
     if (recommended.length) availabilityDetails += ` Для лучшего результата рекомендуется: ${recommended.join(', ')}.`;
 
     const tip = preparationTip(recipe);
@@ -780,7 +787,7 @@
         <p class="editorial-note"><strong>Статус рецепта:</strong> ${escapeHtml(editorial.description)} Версия ${escapeHtml(recipe.editorial?.version || '0.1-draft')}${recipe.editorial?.batch ? ` · партия ${escapeHtml(recipe.editorial.batch)}` : ''}.</p>
         <div class="availability-box ${availabilityClass}"><strong>${escapeHtml(availabilityTitle)}</strong><span>${escapeHtml(availabilityDetails)}</span></div>
         ${tip ? `<p class="prep-tip"><strong>Как подготовить продукты:</strong> ${escapeHtml(tip)}</p>` : ''}
-        <button id="startCooking" class="primary-button" type="button">Начать готовить</button>
+        <button id="startCooking" class="primary-button" type="button" ${hasMissingRequired ? 'disabled' : ''}>${hasMissingRequired ? 'Сначала добавьте обязательные продукты' : 'Начать готовить'}</button>
 
         <h2 class="section-title">Ингредиенты</h2>
         <p class="amount-note">Количество рассчитано на ${portionsLabel(selectedServings)}. Граммы и миллилитры округлены до бытовых значений, ложки — до ¼.</p>

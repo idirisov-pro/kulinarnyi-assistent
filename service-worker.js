@@ -1,4 +1,4 @@
-const CACHE_NAME = 'culinary-assistant-v3-preview-4';
+const CACHE_NAME = 'culinary-assistant-v3-preview-4-hotfix-1';
 const ASSETS = [
   './',
   './index.html',

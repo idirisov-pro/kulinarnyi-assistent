@@ -44,6 +44,9 @@ check('Новый визуальный слой', html.includes('preview4.css') 
 check('Статус в интерфейсе', app.includes('editorialStatusView') && app.includes('Проверен редакционно') && app.includes('фактическое приготовление ещё не подтверждено'), 'пояснение статуса присутствует');
 check('Два потока обратной связи', app.includes('клиент приготовил блюдо') && app.includes('ручная проверка приложения'), 'клиентское приготовление отделено от функциональной проверки');
 
+check('Блокировка готовки без обязательных продуктов', app.includes("hasMissingRequired ? 'disabled' : ''") && app.includes('Сначала добавьте обязательные продукты'), 'пошаговый режим не стартует при отсутствии обязательных ингредиентов');
+check('Предупреждение о превышении времени', app.includes('Рецепту нужно больше времени') && app.includes('timeMismatch'), 'карточка рецепта сохраняет контекст ограничения по времени');
+
 const failed = results.filter(item => !item.passed);
 console.log(JSON.stringify({version:'3.0-preview.4', passed:failed.length === 0, results}, null, 2));
 if (failed.length) process.exitCode = 1;
