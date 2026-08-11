@@ -1,8 +1,9 @@
-const CACHE_NAME = 'culinary-assistant-v3-preview-3';
+const CACHE_NAME = 'culinary-assistant-v3-preview-4';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
+  './preview4.css',
   './app.js',
   './manifest.webmanifest',
   './data/ingredients.js',

@@ -1,0 +1,24 @@
+name: quality-check
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches:
+      - agent/preview-4-ux-corrections
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Check JavaScript syntax
+        run: |
+          node --check app.js
+          node --check service-worker.js
+          node --check quality-check.mjs
+      - name: Validate build and recipe data
+        run: node quality-check.mjs

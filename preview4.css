@@ -1,0 +1,104 @@
+:root {
+  --bg: #f3f5f1;
+  --surface: #fffefb;
+  --surface-strong: #ffffff;
+  --text: #1e2922;
+  --muted: #657068;
+  --border: #d8dfd9;
+  --accent: #2f6648;
+  --accent-dark: #234c36;
+  --accent-soft: #e6f2ea;
+  --warning: #8c5a16;
+  --warning-soft: #fff4df;
+  --danger: #9e3c34;
+  --danger-soft: #fff0ee;
+  --shadow: 0 18px 48px rgba(30,53,38,.08);
+}
+
+body {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(89,141,102,.10), transparent 28rem),
+    linear-gradient(180deg,#f7f9f5 0%,#f2f4f0 100%);
+}
+
+.app-header {
+  min-height: 64px;
+  background: rgba(249,251,248,.92);
+  border-bottom-color: rgba(47,102,72,.14);
+}
+.brand-mini { display:flex; align-items:center; gap:9px; font-weight:850; color:var(--accent-dark); }
+.brand-dot { width:11px; height:11px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 5px rgba(47,102,72,.10); }
+.header-actions { margin-left:auto; }
+
+.app-shell { width:min(960px,100%); padding-top:26px; }
+.hero-v4 { display:grid; gap:18px; padding:10px 0 24px; }
+.hero-copy { max-width:820px; }
+.eyebrow { margin:0 0 9px !important; color:var(--accent) !important; font-size:.82rem !important; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.hero-v4 h1 { max-width:860px; font-size:clamp(2.35rem,7vw,4rem); }
+.flow-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:720px; }
+.flow-strip span { display:flex; align-items:center; gap:9px; border:1px solid var(--border); border-radius:14px; padding:10px 13px; background:rgba(255,255,255,.72); font-weight:800; }
+.flow-strip b { display:grid; place-items:center; width:27px; height:27px; border-radius:9px; background:var(--accent); color:#fff; }
+
+.search-panel { padding:0; overflow:hidden; }
+.form-block { padding:24px; border-top:1px solid var(--border); }
+.form-block:first-child { border-top:0; }
+.form-block-primary { background:linear-gradient(180deg,#fffefb 0%,#fbfdfb 100%); }
+.form-block-heading { display:grid; grid-template-columns:auto 1fr; gap:13px; align-items:start; margin-bottom:20px; }
+.form-block-heading h2 { margin:0 0 4px; font-size:1.35rem; }
+.form-block-heading p { margin:0; color:var(--muted); line-height:1.45; }
+.step-pill { display:grid; place-items:center; width:34px; height:34px; border-radius:11px; background:var(--accent); color:white; font-weight:900; }
+
+.search-input-wrap { position:relative; }
+.search-input-wrap input { padding-right:46px; }
+.input-clear { position:absolute; right:7px; top:50%; transform:translateY(-50%); width:34px; height:34px; border:0; border-radius:10px; background:var(--accent-soft); color:var(--accent-dark); font-size:1.35rem; font-weight:900; }
+.selected-box-v4 { background:#f4f8f4; border-color:#ccd9cf; }
+
+.parameter-grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(220px,.75fr); gap:18px; align-items:stretch; }
+.portion-card { padding:18px; border:1px solid #cbd9cf; border-radius:18px; background:linear-gradient(145deg,#edf7ef,#fbfdfb); }
+.portion-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.portion-heading label { font-weight:900; }
+.portion-heading strong { min-width:56px; text-align:center; padding:6px 10px; border-radius:12px; background:var(--accent); color:#fff; font-size:1.45rem; font-variant-numeric:tabular-nums; }
+.portion-range { width:100%; margin:22px 0 14px; accent-color:var(--accent); min-height:28px; }
+.portion-input-row { display:grid; grid-template-columns:auto 1fr auto; align-items:end; gap:14px; }
+.portion-number-label { display:grid; grid-template-columns:auto 90px; justify-content:center; align-items:center; gap:9px; font-size:.88rem; font-weight:800; }
+.portion-number-label input { padding:8px 10px; text-align:center; font-weight:900; font-size:1.05rem; }
+.portion-help { margin:12px 0 0; color:var(--muted); font-size:.86rem; line-height:1.4; }
+.difficulty-field { padding:18px; border:1px solid var(--border); border-radius:18px; background:#fff; align-content:start; }
+
+.submit-v4 { min-height:58px; border-radius:0; font-size:1.08rem; }
+.results-heading { display:flex; justify-content:space-between; gap:18px; align-items:end; margin:4px 0 18px; }
+.results-heading h2 { margin:0; font-size:2rem; }
+.results-heading #resultContext { text-align:right; max-width:430px; margin:0; }
+.result-section-label { margin:2px 0 -2px; font-size:.9rem; font-weight:900; color:var(--accent-dark); text-transform:uppercase; letter-spacing:.06em; }
+.result-card { position:relative; overflow:hidden; border-radius:18px; }
+.result-card::before { content:""; position:absolute; inset:0 auto 0 0; width:5px; background:var(--accent); }
+.result-card.near-card::before { background:#d29845; }
+.result-card.near-card { background:#fffaf2; }
+.near-explanation { margin:10px 0 0; color:var(--muted); line-height:1.45; }
+.match-near { background:#fff0d4; color:#7a4b0a; }
+
+.recipe-panel { border-radius:22px; }
+.prep-tip { margin:16px 0; padding:13px 14px; border-radius:12px; background:#eef5ff; border-left:4px solid #537ca5; color:#3f5870; line-height:1.5; }
+.ingredient-amount { font-weight:850; color:var(--accent-dark); }
+.amount-note { margin:6px 0 0; color:var(--muted); font-size:.82rem; }
+
+@media (max-width:760px) {
+  .brand-mini span:last-child { display:none; }
+  .header-actions { gap:5px; }
+  .compact-button { padding:8px 10px !important; }
+  .flow-strip { grid-template-columns:1fr; }
+  .parameter-grid { grid-template-columns:1fr; }
+  .results-heading { display:grid; align-items:start; }
+  .results-heading #resultContext { text-align:left; }
+}
+
+@media (max-width:520px) {
+  .app-shell { padding-left:12px; padding-right:12px; }
+  .hero-v4 h1 { font-size:2.35rem; }
+  .form-block { padding:18px 15px; }
+  .form-block-heading { grid-template-columns:30px 1fr; gap:10px; }
+  .step-pill { width:30px; height:30px; }
+  .portion-input-row { grid-template-columns:auto 1fr auto; gap:8px; }
+  .portion-number-label { grid-template-columns:1fr; gap:4px; text-align:center; }
+  .header-actions #historyButton { display:none; }
+}

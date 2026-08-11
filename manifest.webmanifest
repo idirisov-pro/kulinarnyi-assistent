@@ -1,12 +1,12 @@
 {
   "name": "Кулинарный ассистент",
   "short_name": "Готовим",
-  "description": "Подбор рецептов по имеющимся продуктам с пошаговым режимом и локальной историей.",
+  "description": "Подбор рецептов по продуктам, времени и порциям с близкими вариантами, бытовым округлением и пошаговым режимом.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f7f2e8",
-  "theme_color": "#355b3e",
+  "background_color": "#f3f5f1",
+  "theme_color": "#2f5d45",
   "lang": "ru",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
