@@ -1,0 +1,95 @@
+from pathlib import Path
+
+root = Path('.')
+idx = (root / 'index.html').read_text()
+app = (root / 'app.js').read_text()
+sw = (root / 'service-worker.js').read_text()
+qc = (root / 'quality-check.mjs').read_text()
+readme = (root / 'README.md').read_text()
+
+idx = idx.replace(
+    '<meta name="description" content="Кулинарный ассистент подбирает рецепты по продуктам, времени и количеству порций и помогает пройти приготовление пошагово." />',
+    '<meta name="description" content="Кулинарный ассистент подбирает рецепты по продуктам, времени и количеству порций и помогает пройти приготовление пошагово." />\n  <meta property="og:title" content="Кулинарный ассистент — открытая бета" />\n  <meta property="og:description" content="Выберите продукты, время и количество порций — получите подходящие рецепты и пошаговое приготовление." />\n  <meta property="og:type" content="website" />\n  <meta property="og:url" content="https://idirisov-pro.github.io/kulinarnyi-assistent/" />\n  <meta name="twitter:card" content="summary" />\n  <link rel="canonical" href="https://idirisov-pro.github.io/kulinarnyi-assistent/" />'
+)
+idx = idx.replace('Версия 3.0-preview.5 · внешнее тестирование', 'Открытая бета · версия 3.0-preview.5')
+idx = idx.replace(
+    '<p class="alpha-notice"><strong>Важно:</strong> это предварительная версия. «Проверен редакционно» не означает, что рецепт уже подтверждён фактическим приготовлением. При серьёзной пищевой аллергии не используйте приложение как единственный источник безопасности.</p>',
+    '<p class="alpha-notice"><strong>Открытая бета:</strong> приложение уже доступно всем. Если заметите ошибку, неудобство или странный результат, нажмите «Отзыв» — это поможет улучшить следующую версию. «Проверен редакционно» не означает, что рецепт уже подтверждён фактическим приготовлением. При серьёзной пищевой аллергии не используйте приложение как единственный источник безопасности.</p>'
+)
+idx = idx.replace('<h2 id="feedbackTitle">Проверка работы приложения</h2>', '<h2 id="feedbackTitle">Отзыв об открытой бете</h2>')
+idx = idx.replace(
+    '<div class="dialog-actions"><button id="cancelFeedback" type="button" class="ghost-button">Отмена</button><button id="sendFeedback" type="submit" class="primary-button">Отправить через WhatsApp</button></div>',
+    '<p class="muted small-text">На телефоне откроется системное меню — выберите удобный способ отправки. На компьютере отзыв можно скопировать в буфер обмена.</p>\n      <div class="dialog-actions"><button id="cancelFeedback" type="button" class="ghost-button">Отмена</button><button id="sendFeedback" type="submit" class="primary-button">Поделиться отзывом</button></div>'
+)
+
+app = app.replace(
+    "feedbackTitle.textContent = source === 'cooking' ? 'Как получилось блюдо?' : 'Проверка работы приложения';",
+    "feedbackTitle.textContent = source === 'cooking' ? 'Как получилось блюдо?' : 'Отзыв об открытой бете';"
+)
+app = app.replace('  function sendFeedback(event) {', '  async function sendFeedback(event) {')
+app = app.replace(
+    "`Тип проверки: ${state.feedbackSource === 'cooking' ? 'клиент приготовил блюдо' : 'ручная проверка приложения'}`,",
+    "`Тип обратной связи: ${state.feedbackSource === 'cooking' ? 'приготовление блюда' : 'открытая бета'}`,"
+)
+
+old = """    recordHistory({ type: 'feedback_ready', at: new Date().toISOString(), recipe: state.currentRecipe?.id, servings: settings.servings, rating: rating ? Number(rating) : null, actualTime: actualTime ? Number(actualTime) : null, wouldReturn, session: state.lastSessionCode });
+    feedbackDialog.close();
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+    state.lastSessionCode = createSessionCode();
+    document.getElementById('feedbackForm').reset();
+    document.getElementById('wouldReturn').checked = true;
+"""
+new = """    let delivered = false;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Кулинарный ассистент — отзыв', text });
+        delivered = true;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+      }
+    }
+
+    if (!delivered) {
+      try {
+        await navigator.clipboard.writeText(text);
+        window.alert('Отзыв скопирован в буфер обмена. Вставьте его в комментарий под публикацией или отправьте удобным способом.');
+        delivered = true;
+      } catch {
+        window.prompt('Скопируйте отзыв и отправьте его удобным способом:', text);
+        delivered = true;
+      }
+    }
+
+    if (!delivered) return;
+    recordHistory({ type: 'feedback_ready', at: new Date().toISOString(), recipe: state.currentRecipe?.id, servings: settings.servings, rating: rating ? Number(rating) : null, actualTime: actualTime ? Number(actualTime) : null, wouldReturn, session: state.lastSessionCode });
+    feedbackDialog.close();
+    state.lastSessionCode = createSessionCode();
+    document.getElementById('feedbackForm').reset();
+    document.getElementById('wouldReturn').checked = true;
+"""
+if old not in app:
+    raise SystemExit('Expected WhatsApp feedback block not found')
+app = app.replace(old, new)
+
+sw = sw.replace('culinary-assistant-v3-preview-5', 'culinary-assistant-v3-preview-5-public-beta-1')
+
+qc = qc.replace("const invitation = fs.readFileSync(path.join(root,'WHATSAPP_INVITATION.txt'),'utf8');", "const readme = fs.readFileSync(path.join(root,'README.md'),'utf8');")
+qc = qc.replace(
+    "check('Два потока обратной связи', app.includes('клиент приготовил блюдо') && app.includes('ручная проверка приложения'), 'клиентское приготовление отделено от функциональной проверки');",
+    "check('Два потока обратной связи', app.includes('приготовление блюда') && app.includes('открытая бета'), 'приготовление отделено от общего отзыва об открытой бете');"
+)
+qc = qc.replace(
+    "check('Ссылка для внешнего теста', invitation.includes('https://idirisov-pro.github.io/kulinarnyi-assistent/') && invitation.includes('3.0-preview.5'), 'приглашение содержит актуальную ссылку и версию');",
+    "check('Публичная ссылка', readme.includes('https://idirisov-pro.github.io/kulinarnyi-assistent/') && html.includes('Открытая бета · версия 3.0-preview.5'), 'публичная бета и ссылка зафиксированы');\ncheck('Отзыв не привязан к WhatsApp', !html.includes('Отправить через WhatsApp') && !app.includes('wa.me'), 'обратная связь не зависит от конкретного мессенджера');\ncheck('Share/clipboard обратная связь', app.includes('navigator.share') && app.includes('navigator.clipboard.writeText'), 'используется системное меню или буфер обмена');\ncheck('Open Graph metadata', html.includes('og:title') && html.includes('og:url'), 'публичная ссылка готова к превью в соцсетях');"
+)
+
+if '## Открытая публичная бета' not in readme:
+    marker = '## Что изменено в 3.0-preview.5\n'
+    section = '''## Открытая публичная бета\n\nСборка 3.0-preview.5 переведена из закрытого тестирования в открытую публичную бету. Ссылка может распространяться публично. Обратная связь больше не привязана к WhatsApp: на поддерживаемых устройствах используется системное меню «Поделиться», а на компьютере — копирование текста отзыва.\n\n'''
+    readme = readme.replace(marker, section + marker)
+
+(root / 'index.html').write_text(idx)
+(root / 'app.js').write_text(app)
+(root / 'service-worker.js').write_text(sw)
+(root / 'quality-check.mjs').write_text(qc)
+(root / 'README.md').write_text(readme)
