@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const BUILD_VERSION = '3.0-preview.4';
+  const BUILD_VERSION = '3.0-preview.5';
   const MAX_SERVINGS = 20;
   const STORAGE = {
     kitchen: 'ka_kitchen_v4',
@@ -26,13 +26,16 @@
     lastSessionCode: createSessionCode(),
     currentView: 'home',
     feedbackSource: 'general',
-    lastDiagnostics: []
+    lastDiagnostics: [],
+    visibleResultCount: 6
   };
 
   const views = [...document.querySelectorAll('.view')];
   const chips = document.getElementById('ingredientChips');
   const search = document.getElementById('ingredientSearch');
   const clearIngredientSearch = document.getElementById('clearIngredientSearch');
+  const addIngredientFromSearch = document.getElementById('addIngredientFromSearch');
+  const ingredientSearchStatus = document.getElementById('ingredientSearchStatus');
   const categorySelect = document.getElementById('ingredientCategory');
   const selectedChips = document.getElementById('selectedChips');
   const selectedCount = document.getElementById('selectedCount');
@@ -54,11 +57,15 @@
   const servingsInput = document.getElementById('servings');
   const servingsRange = document.getElementById('servingsRange');
   const servingsDisplay = document.getElementById('servingsDisplay');
+  const servingsMessage = document.getElementById('servingsMessage');
+  const decreaseServings = document.getElementById('decreaseServings');
+  const increaseServings = document.getElementById('increaseServings');
 
   const allIngredients = [
     ...window.INGREDIENTS,
     ...window.PANTRY_INGREDIENTS.map(item => ({ ...item, category: 'pantry', aliases: [] }))
   ];
+  const { normalizeSearchText, rankIngredientMatches, uniqueExactMatch } = window.SEARCH_UTILS;
 
   const STEP_REFINEMENTS = {
     buckwheat_chicken: {
@@ -171,7 +178,7 @@
   function getSettings() {
     return {
       maxTime: Number(document.querySelector('input[name="maxTime"]:checked')?.value || 45),
-      servings: clampServings(servingsInput.value),
+      servings: clampServings(servingsInput.value || servingsRange.value),
       difficulty: document.getElementById('difficulty').value,
       shoppingMode: document.querySelector('input[name="shoppingMode"]:checked')?.value || 'strict',
       category: categorySelect.value || 'all'
@@ -206,12 +213,66 @@
     return Math.min(MAX_SERVINGS, Math.max(1, numeric));
   }
 
+  function setServingsMessage(message = '', warning = false) {
+    servingsMessage.textContent = message || 'Количество ингредиентов пересчитывается автоматически с бытовым округлением.';
+    servingsMessage.classList.toggle('is-warning', warning);
+  }
+
+  function updateServingsButtons(servings) {
+    decreaseServings.disabled = servings <= 1;
+    increaseServings.disabled = servings >= MAX_SERVINGS;
+  }
+
   function syncServings(value, persist = true) {
     const servings = clampServings(value);
     servingsInput.value = String(servings);
     servingsRange.value = String(servings);
     servingsDisplay.textContent = String(servings);
+    updateServingsButtons(servings);
+    setServingsMessage();
     if (persist) saveSettings();
+    return servings;
+  }
+
+  function previewServingsInput() {
+    const raw = servingsInput.value.trim();
+    if (!raw) {
+      servingsDisplay.textContent = '—';
+      setServingsMessage('Введите число от 1 до 20.', true);
+      return;
+    }
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) {
+      setServingsMessage('Введите целое число от 1 до 20.', true);
+      return;
+    }
+    if (numeric < 1 || numeric > MAX_SERVINGS) {
+      servingsDisplay.textContent = String(Math.round(numeric));
+      setServingsMessage(`Допустимо от 1 до ${MAX_SERVINGS} порций. Значение будет исправлено после подтверждения.`, true);
+      return;
+    }
+    const servings = Math.round(numeric);
+    servingsRange.value = String(servings);
+    servingsDisplay.textContent = String(servings);
+    updateServingsButtons(servings);
+    setServingsMessage(`Выбрано: ${portionsLabel(servings)}.`);
+    saveSettings();
+  }
+
+  function commitServingsInput() {
+    const raw = servingsInput.value.trim();
+    const numeric = Number(raw);
+    const hadInvalidValue = !raw || !Number.isFinite(numeric) || numeric < 1 || numeric > MAX_SERVINGS;
+    const servings = syncServings(hadInvalidValue ? (Number.isFinite(numeric) ? numeric : servingsRange.value) : numeric);
+    if (hadInvalidValue) setServingsMessage(`Установлено допустимое значение: ${portionsLabel(servings)}.`, true);
+    else setServingsMessage(`Выбрано: ${portionsLabel(servings)}.`);
+    return servings;
+  }
+
+  function adjustServings(delta) {
+    const current = clampServings(servingsInput.value || servingsRange.value);
+    syncServings(current + delta);
+    setServingsMessage(`Выбрано: ${portionsLabel(clampServings(current + delta))}.`);
   }
 
   function showView(name, pushHistory = true) {
@@ -302,35 +363,59 @@
     });
   }
 
-  function ingredientMatchesQuery(item, query) {
-    if (!query) return true;
-    return [item.name, ...(item.aliases || [])].join(' ').toLowerCase().includes(query);
-  }
-
   function updateSearchClearButton() {
     clearIngredientSearch.classList.toggle('hidden', !search.value);
   }
 
-  function clearSearchField() {
+  function setSearchStatus(message, kind = '') {
+    ingredientSearchStatus.textContent = message;
+    ingredientSearchStatus.classList.toggle('status-success', kind === 'success');
+    ingredientSearchStatus.classList.toggle('status-warning', kind === 'warning');
+  }
+
+  function currentIngredientMatches() {
+    const query = normalizeSearchText(search.value);
+    const selectedCategory = categorySelect.value;
+    if (query) return rankIngredientMatches(window.INGREDIENTS, query);
+    return window.INGREDIENTS.filter(item => selectedCategory === 'all'
+      ? true
+      : selectedCategory === 'common'
+        ? item.common
+        : item.category === selectedCategory);
+  }
+
+  function clearSearchField({ focus = true } = {}) {
     search.value = '';
     updateSearchClearButton();
     renderIngredients();
-    search.focus({ preventScroll: true });
+    if (focus) search.focus({ preventScroll: true });
+  }
+
+  function addFromSearch() {
+    const query = normalizeSearchText(search.value);
+    if (!query) {
+      setSearchStatus('Введите первые буквы или название продукта.', 'warning');
+      search.focus({ preventScroll: true });
+      return false;
+    }
+    const matches = currentIngredientMatches();
+    const exact = uniqueExactMatch(matches, query);
+    const candidate = exact || (matches.length === 1 ? matches[0] : null);
+    if (!candidate) {
+      setSearchStatus(matches.length
+        ? `Найдено ${matches.length} варианта. Выберите нужный продукт из списка ниже.`
+        : 'Ничего не найдено. Попробуйте другое название или синоним.', 'warning');
+      return false;
+    }
+    if (!state.selectedIngredients.has(candidate.id)) toggleIngredient(candidate.id);
+    clearSearchField({ focus: false });
+    setSearchStatus(`${candidate.name} добавлен в выбранные продукты.`, 'success');
+    return true;
   }
 
   function renderIngredients() {
-    const query = search.value.trim().toLowerCase();
-    const selectedCategory = categorySelect.value;
-    const matches = window.INGREDIENTS.filter(item => {
-      const categoryMatches = query
-        ? true
-        : selectedCategory === 'all'
-          ? true
-          : selectedCategory === 'common'
-            ? item.common
-            : item.category === selectedCategory;
-      return categoryMatches && ingredientMatchesQuery(item, query);
-    });
+    const query = normalizeSearchText(search.value);
+    const matches = currentIngredientMatches();
 
     chips.innerHTML = '';
     matches.forEach(item => {
@@ -341,11 +426,22 @@
       button.setAttribute('aria-pressed', state.selectedIngredients.has(item.id));
       button.addEventListener('click', () => {
         toggleIngredient(item.id);
-        if (query) clearSearchField();
+        if (query) {
+          clearSearchField({ focus: false });
+          setSearchStatus(`${item.name} добавлен в выбранные продукты.`, 'success');
+        }
       });
       chips.appendChild(button);
     });
     emptyIngredientSearch.classList.toggle('hidden', matches.length > 0);
+    if (query) {
+      if (!matches.length) setSearchStatus('Ничего не найдено. Попробуйте другое название или синоним.', 'warning');
+      else if (matches.length === 1) setSearchStatus(`Найдено: ${matches[0].name}. Нажмите «Добавить» или Enter.`, 'success');
+      else setSearchStatus(`Найдено ${matches.length} варианта. Выберите нужный продукт.`);
+    } else if (!ingredientSearchStatus.classList.contains('status-success')) {
+      setSearchStatus('Введите первые буквы или название продукта, затем выберите вариант.');
+    }
+    addIngredientFromSearch.disabled = !query || !matches.length;
     updateSearchClearButton();
   }
 
@@ -485,6 +581,7 @@
         if (!coveredCritical) return false;
         const additions = [...item.missingCritical, ...item.missingRequired, ...item.missingPantry].length;
         const timeOver = Math.max(0, item.recipe.totalMinutes - maxTime);
+        if (mode === 'strict' && additions > 0) return false;
         return additions <= 3 && timeOver <= 30;
       })
       .sort((a, b) => {
@@ -492,7 +589,7 @@
         const bPenalty = Math.max(0, b.recipe.totalMinutes - maxTime) / 60 + [...b.missingCritical, ...b.missingRequired, ...b.missingPantry].length * 0.08;
         return (b.closeness - bPenalty) - (a.closeness - aPenalty);
       })
-      .slice(0, 2);
+      .slice(0, 4);
   }
 
   function difficultyName(value) {
@@ -510,16 +607,29 @@
     return statusViews[status] || statusViews.draft;
   }
 
-  function portionsLabel(number) {
+  function countLabel(number, one, few, many) {
     const mod10 = number % 10;
     const mod100 = number % 100;
-    if (mod10 === 1 && mod100 !== 11) return `${number} порция`;
-    if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return `${number} порции`;
-    return `${number} порций`;
+    if (mod10 === 1 && mod100 !== 11) return `${number} ${one}`;
+    if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return `${number} ${few}`;
+    return `${number} ${many}`;
+  }
+
+  function portionsLabel(number) {
+    return countLabel(number, 'порция', 'порции', 'порций');
+  }
+
+  function productsLabel(number) {
+    return countLabel(number, 'продукт', 'продукта', 'продуктов');
+  }
+
+  function recipesLabel(number) {
+    return countLabel(number, 'рецепт', 'рецепта', 'рецептов');
   }
 
   function runSearch(event) {
     event.preventDefault();
+    commitServingsInput();
     const error = document.getElementById('formError');
     error.textContent = '';
     if (state.selectedIngredients.size < 1) {
@@ -533,7 +643,8 @@
       .map(recipe => evaluateRecipe(recipe, maxTime, difficulty, mode))
       .filter(Boolean)
       .sort((a, b) => b.score - a.score);
-    state.results = evaluated.slice(0, 3);
+    state.results = evaluated;
+    state.visibleResultCount = 6;
     const exactIds = new Set(state.results.map(item => item.recipe.id));
     state.nearMatches = buildNearMatches(maxTime, difficulty, mode, exactIds);
     state.lastDiagnostics = window.RECIPES
@@ -542,7 +653,12 @@
       .sort((a, b) => b.closeness - a.closeness)
       .slice(0, 4);
 
-    resultContext.textContent = `${state.selectedIngredients.size} продуктов · до ${maxTime} минут · ${portionsLabel(servings)} · ${mode === 'flexible' ? 'можно добавить 1–2 продукта' : 'строгий подбор'}`;
+    const foundText = state.results.length
+      ? `${recipesLabel(state.results.length)} ${state.results.length === 1 ? 'подходит' : 'подходят'}`
+      : state.nearMatches.length
+        ? `${recipesLabel(state.nearMatches.length)} ${state.nearMatches.length === 1 ? 'почти подходит' : 'почти подходят'}`
+        : 'вариантов не найдено';
+    resultContext.textContent = `${productsLabel(state.selectedIngredients.size)} · до ${maxTime} минут · ${portionsLabel(servings)} · ${mode === 'flexible' ? 'можно добавить 1–2 продукта' : 'строгий подбор'} · ${foundText}`;
     renderSearchResults();
     recordHistory({
       type: 'search',
@@ -579,9 +695,14 @@
       return;
     }
     const chunks = [];
-    if (state.results.length) {
+    const visibleResults = state.results.slice(0, state.visibleResultCount);
+    chunks.push(`<p class="result-summary"><strong>Подходящих вариантов: ${state.results.length}.</strong> ${state.results.length > visibleResults.length ? `Сначала показаны первые ${visibleResults.length}.` : 'Показаны все найденные варианты.'}</p>`);
+    if (visibleResults.length) {
       chunks.push('<p class="result-section-label">Подходит по выбранным условиям</p>');
-      chunks.push(state.results.map(item => resultCardHtml(item, false)).join(''));
+      chunks.push(visibleResults.map(item => resultCardHtml(item, false)).join(''));
+      if (state.results.length > visibleResults.length) {
+        chunks.push(`<div class="show-more-wrap"><button class="ghost-button show-more-results" type="button" data-show-more>Показать ещё (${state.results.length - visibleResults.length})</button></div>`);
+      }
     }
     if (state.nearMatches.length) {
       chunks.push('<p class="result-section-label">Почти подходит — можно рассмотреть</p>');
@@ -640,24 +761,48 @@
       if (container === resultsList) renderSearchResults();
       else showFavorites();
     }));
+    container.querySelector('[data-show-more]')?.addEventListener('click', () => {
+      state.visibleResultCount += 6;
+      renderSearchResults();
+    });
   }
 
   function renderNoResults() {
     const diagnostics = state.lastDiagnostics.slice(0, 3);
+    const settings = getSettings();
     const diagnosticHtml = diagnostics.length ? `
       <div class="diagnostic-list">
         <strong>Что мешает ближайшим вариантам</strong>
         ${diagnostics.map(item => `<div class="diagnostic-item"><b>${escapeHtml(item.recipe.title)}</b><span>${escapeHtml(item.blockers.join('; ') || 'Не хватает подходящих продуктов')}.</span></div>`).join('')}
       </div>` : '';
+    const quickActions = [
+      settings.shoppingMode === 'strict' ? '<button class="ghost-button" type="button" data-relax-mode>Разрешить добавить 1–2 продукта</button>' : '',
+      settings.maxTime < 60 ? '<button class="ghost-button" type="button" data-relax-time>Показать варианты до 60 минут</button>' : '',
+      settings.difficulty !== 'any' ? '<button class="ghost-button" type="button" data-relax-difficulty>Снять ограничение сложности</button>' : ''
+    ].filter(Boolean).join('');
     resultsList.innerHTML = `
       <div class="empty-state panel">
         <strong>Подходящего или близкого варианта пока нет.</strong>
         <p>Не нужно угадывать параметры рецепта. Ниже показано, что именно мешает; можно изменить один параметр и повторить подбор.</p>
         ${diagnosticHtml}
+        ${quickActions ? `<div class="quick-adjustments">${quickActions}</div>` : ''}
         <div class="empty-actions"><button class="primary-button" type="button" data-empty-home>Изменить параметры</button><button class="ghost-button" type="button" data-empty-feedback>Сообщить о проблеме</button></div>
       </div>`;
+    const repeatSearch = () => document.getElementById('searchForm').requestSubmit();
     resultsList.querySelector('[data-empty-home]').addEventListener('click', () => showView('home'));
     resultsList.querySelector('[data-empty-feedback]').addEventListener('click', () => openFeedback('general'));
+    resultsList.querySelector('[data-relax-mode]')?.addEventListener('click', () => {
+      document.querySelector('input[name="shoppingMode"][value="flexible"]').checked = true;
+      saveSettings(); repeatSearch();
+    });
+    resultsList.querySelector('[data-relax-time]')?.addEventListener('click', () => {
+      document.querySelector('input[name="maxTime"][value="60"]').checked = true;
+      saveSettings(); repeatSearch();
+    });
+    resultsList.querySelector('[data-relax-difficulty]')?.addEventListener('click', () => {
+      document.getElementById('difficulty').value = 'any';
+      saveSettings(); repeatSearch();
+    });
   }
 
   function parseQuantity(value) {
@@ -1031,11 +1176,29 @@
 
   document.getElementById('searchForm').addEventListener('submit', runSearch);
   search.addEventListener('input', () => { renderIngredients(); updateSearchClearButton(); });
-  clearIngredientSearch.addEventListener('click', clearSearchField);
+  search.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    addFromSearch();
+  });
+  addIngredientFromSearch.addEventListener('click', addFromSearch);
+  clearIngredientSearch.addEventListener('click', () => clearSearchField());
   categorySelect.addEventListener('change', () => { renderIngredients(); saveSettings(); });
-  servingsRange.addEventListener('input', () => syncServings(servingsRange.value));
-  servingsInput.addEventListener('input', () => syncServings(servingsInput.value));
-  servingsInput.addEventListener('blur', () => syncServings(servingsInput.value));
+  servingsRange.addEventListener('input', () => {
+    const servings = syncServings(servingsRange.value);
+    setServingsMessage(`Выбрано: ${portionsLabel(servings)}.`);
+  });
+  servingsInput.addEventListener('input', previewServingsInput);
+  servingsInput.addEventListener('change', commitServingsInput);
+  servingsInput.addEventListener('blur', commitServingsInput);
+  servingsInput.addEventListener('focus', () => window.setTimeout(() => servingsInput.select(), 0));
+  servingsInput.addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    commitServingsInput();
+  });
+  decreaseServings.addEventListener('click', () => adjustServings(-1));
+  increaseServings.addEventListener('click', () => adjustServings(1));
   document.querySelectorAll('input[name="maxTime"], input[name="shoppingMode"]').forEach(input => input.addEventListener('change', saveSettings));
   document.getElementById('difficulty').addEventListener('change', saveSettings);
   document.getElementById('clearIngredients').addEventListener('click', () => {
