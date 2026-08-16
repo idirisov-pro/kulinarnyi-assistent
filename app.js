@@ -1122,11 +1122,11 @@
 
   function openFeedback(source = 'general') {
     state.feedbackSource = source;
-    feedbackTitle.textContent = source === 'cooking' ? 'Как получилось блюдо?' : 'Проверка работы приложения';
+    feedbackTitle.textContent = source === 'cooking' ? 'Как получилось блюдо?' : 'Отзыв об открытой бете';
     feedbackDialog.showModal();
   }
 
-  function sendFeedback(event) {
+  async function sendFeedback(event) {
     event.preventDefault();
     const rating = document.getElementById('rating').value;
     const actualTime = document.getElementById('actualTime').value;
@@ -1143,7 +1143,7 @@
     const text = [
       'Обратная связь — кулинарный ассистент',
       `Версия: ${BUILD_VERSION}`,
-      `Тип проверки: ${state.feedbackSource === 'cooking' ? 'клиент приготовил блюдо' : 'ручная проверка приложения'}`,
+      `Тип обратной связи: ${state.feedbackSource === 'cooking' ? 'приготовление блюда' : 'открытая бета'}`,
       `Код сессии: ${state.lastSessionCode}`,
       `Дата: ${new Date().toLocaleDateString('ru-RU')}`,
       `Порции: ${settings.servings}`,
@@ -1162,9 +1162,30 @@
       `Использовал(а) бы снова: ${wouldReturn}`
     ].join('\n');
 
+    let delivered = false;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Кулинарный ассистент — отзыв', text });
+        delivered = true;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+      }
+    }
+
+    if (!delivered) {
+      try {
+        await navigator.clipboard.writeText(text);
+        window.alert('Отзыв скопирован в буфер обмена. Вставьте его в комментарий под публикацией или отправьте удобным способом.');
+        delivered = true;
+      } catch {
+        window.prompt('Скопируйте отзыв и отправьте его удобным способом:', text);
+        delivered = true;
+      }
+    }
+
+    if (!delivered) return;
     recordHistory({ type: 'feedback_ready', at: new Date().toISOString(), recipe: state.currentRecipe?.id, servings: settings.servings, rating: rating ? Number(rating) : null, actualTime: actualTime ? Number(actualTime) : null, wouldReturn, session: state.lastSessionCode });
     feedbackDialog.close();
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
     state.lastSessionCode = createSessionCode();
     document.getElementById('feedbackForm').reset();
     document.getElementById('wouldReturn').checked = true;
