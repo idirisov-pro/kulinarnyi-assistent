@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#2f5d45" />
   <meta name="description" content="Кулинарный ассистент подбирает рецепты по продуктам, времени и количеству порций и помогает пройти приготовление пошагово." />
+  <meta property="og:title" content="Кулинарный ассистент — открытая бета" />
+  <meta property="og:description" content="Выберите продукты, время и количество порций — получите подходящие рецепты и пошаговое приготовление." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://idirisov-pro.github.io/kulinarnyi-assistent/" />
+  <meta name="twitter:card" content="summary" />
+  <link rel="canonical" href="https://idirisov-pro.github.io/kulinarnyi-assistent/" />
   <link rel="manifest" href="manifest.webmanifest?v=3.0-preview.5" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="stylesheet" href="styles.css?v=3.0-preview.5" />
@@ -27,14 +33,14 @@
     <section id="homeView" class="view active">
       <div class="hero hero-v4">
         <div class="hero-copy">
-          <p class="eyebrow">Версия 3.0-preview.5 · внешнее тестирование</p>
+          <p class="eyebrow">Открытая бета · версия 3.0-preview.5</p>
           <h1>Что приготовить из того, что уже есть дома?</h1>
           <p>Отметьте продукты и ограничения. Ассистент сначала покажет то, что можно приготовить сейчас, а затем — близкие варианты, если достаточно добавить 1–2 продукта или немного увеличить время.</p>
         </div>
         <div class="flow-strip" aria-label="Как работает подбор">
           <span><b>1</b> Продукты</span><span><b>2</b> Параметры</span><span><b>3</b> Варианты</span>
         </div>
-        <p class="alpha-notice"><strong>Важно:</strong> это предварительная версия. «Проверен редакционно» не означает, что рецепт уже подтверждён фактическим приготовлением. При серьёзной пищевой аллергии не используйте приложение как единственный источник безопасности.</p>
+        <p class="alpha-notice"><strong>Открытая бета:</strong> приложение уже доступно всем. Если заметите ошибку, неудобство или странный результат, нажмите «Отзыв» — это поможет улучшить следующую версию. «Проверен редакционно» не означает, что рецепт уже подтверждён фактическим приготовлением. При серьёзной пищевой аллергии не используйте приложение как единственный источник безопасности.</p>
       </div>
 
       <form id="searchForm" class="panel search-panel" novalidate>
@@ -182,7 +188,7 @@
 
   <dialog id="feedbackDialog">
     <form id="feedbackForm" class="feedback-form">
-      <h2 id="feedbackTitle">Проверка работы приложения</h2>
+      <h2 id="feedbackTitle">Отзыв об открытой бете</h2>
       <label class="field-label">Оценка результата (необязательно)
         <select id="rating"><option value="">Выберите</option><option value="5">5 — отлично</option><option value="4">4 — хорошо</option><option value="3">3 — средне</option><option value="2">2 — плохо</option><option value="1">1 — не получилось</option></select>
       </label>
@@ -193,7 +199,8 @@
         <textarea id="problemText" rows="5" required placeholder="Напишите хотя бы одно наблюдение"></textarea>
       </label>
       <label class="checkbox-row"><input id="wouldReturn" type="checkbox" checked /> Использовал(а) бы ассистент снова</label>
-      <div class="dialog-actions"><button id="cancelFeedback" type="button" class="ghost-button">Отмена</button><button id="sendFeedback" type="submit" class="primary-button">Отправить через WhatsApp</button></div>
+      <p class="muted small-text">На телефоне откроется системное меню — выберите удобный способ отправки. На компьютере отзыв можно скопировать в буфер обмена.</p>
+      <div class="dialog-actions"><button id="cancelFeedback" type="button" class="ghost-button">Отмена</button><button id="sendFeedback" type="submit" class="primary-button">Поделиться отзывом</button></div>
     </form>
   </dialog>
 

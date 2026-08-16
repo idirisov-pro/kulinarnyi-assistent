@@ -36,7 +36,7 @@ const app = fs.readFileSync(path.join(root,'app.js'),'utf8');
 const sw = fs.readFileSync(path.join(root,'service-worker.js'),'utf8');
 const css4 = fs.readFileSync(path.join(root,'preview4.css'),'utf8');
 const css5 = fs.readFileSync(path.join(root,'preview5.css'),'utf8');
-const invitation = fs.readFileSync(path.join(root,'WHATSAPP_INVITATION.txt'),'utf8');
+const readme = fs.readFileSync(path.join(root,'README.md'),'utf8');
 
 check('Маркер сборки', html.includes('3.0-preview.5') && app.includes("BUILD_VERSION = '3.0-preview.5'") && sw.includes('v3-preview-5'), 'HTML, приложение и кэш согласованы');
 check('Версионные ресурсы', html.includes('app.js?v=3.0-preview.5') && html.includes('search-utils.js?v=3.0-preview.5') && sw.includes('app.js?v=3.0-preview.5'), 'старый PWA-кэш не маскирует новую сборку');
@@ -62,11 +62,14 @@ check('Бытовое округление', app.includes('roundTo(value, 5)') &
 check('Конкретизация нарезки', app.includes('STEP_REFINEMENTS') && app.includes('кубиками 2–3 см') && app.includes('пластинками около 5 мм'), 'для проблемных шагов добавлены размеры и форма нарезки');
 check('Визуальный слой', html.includes('preview4.css') && html.includes('preview5.css') && css4.includes('.portion-card') && css5.includes('.portion-stepper'), 'новые контролы оформлены для desktop/mobile');
 check('Статус в интерфейсе', app.includes('editorialStatusView') && app.includes('Проверен редакционно') && app.includes('фактическое приготовление ещё не подтверждено'), 'пояснение статуса присутствует');
-check('Два потока обратной связи', app.includes('клиент приготовил блюдо') && app.includes('ручная проверка приложения'), 'клиентское приготовление отделено от функциональной проверки');
+check('Два потока обратной связи', app.includes('приготовление блюда') && app.includes('открытая бета'), 'приготовление отделено от общего отзыва об открытой бете');
 check('Блокировка готовки без обязательных продуктов', app.includes("hasMissingRequired ? 'disabled' : ''") && app.includes('Сначала добавьте обязательные продукты'), 'пошаговый режим не стартует при отсутствии обязательных ингредиентов');
 check('Предупреждение о превышении времени', app.includes('Рецепту нужно больше времени') && app.includes('timeMismatch'), 'карточка рецепта сохраняет контекст ограничения по времени');
 check('Свежесть PWA', sw.includes('async function networkFirst') && !sw.includes('cached || fetch'), 'при наличии сети загружается актуальный файл');
-check('Ссылка для внешнего теста', invitation.includes('https://idirisov-pro.github.io/kulinarnyi-assistent/') && invitation.includes('3.0-preview.5'), 'приглашение содержит актуальную ссылку и версию');
+check('Публичная ссылка', readme.includes('https://idirisov-pro.github.io/kulinarnyi-assistent/') && html.includes('Открытая бета · версия 3.0-preview.5'), 'публичная бета и ссылка зафиксированы');
+check('Отзыв не привязан к WhatsApp', !html.includes('Отправить через WhatsApp') && !app.includes('wa.me'), 'обратная связь не зависит от конкретного мессенджера');
+check('Share/clipboard обратная связь', app.includes('navigator.share') && app.includes('navigator.clipboard.writeText'), 'используется системное меню или буфер обмена');
+check('Open Graph metadata', html.includes('og:title') && html.includes('og:url'), 'публичная ссылка готова к превью в соцсетях');
 
 const failed = results.filter(item => !item.passed);
 console.log(JSON.stringify({version:'3.0-preview.5', passed:failed.length === 0, results}, null, 2));
