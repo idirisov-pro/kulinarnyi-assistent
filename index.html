@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#2f5d45" />
   <meta name="description" content="Кулинарный ассистент подбирает рецепты по продуктам, времени и количеству порций и помогает пройти приготовление пошагово." />
-  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="manifest" href="manifest.webmanifest?v=3.0-preview.5" />
   <link rel="icon" href="icons/icon-192.png" />
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="stylesheet" href="preview4.css" />
+  <link rel="stylesheet" href="styles.css?v=3.0-preview.5" />
+  <link rel="stylesheet" href="preview4.css?v=3.0-preview.5" />
+  <link rel="stylesheet" href="preview5.css?v=3.0-preview.5" />
   <title>Кулинарный ассистент</title>
 </head>
 <body>
@@ -26,7 +27,7 @@
     <section id="homeView" class="view active">
       <div class="hero hero-v4">
         <div class="hero-copy">
-          <p class="eyebrow">Версия 3.0-preview.4 · пользовательская проверка</p>
+          <p class="eyebrow">Версия 3.0-preview.5 · внешнее тестирование</p>
           <h1>Что приготовить из того, что уже есть дома?</h1>
           <p>Отметьте продукты и ограничения. Ассистент сначала покажет то, что можно приготовить сейчас, а затем — близкие варианты, если достаточно добавить 1–2 продукта или немного увеличить время.</p>
         </div>
@@ -43,10 +44,14 @@
           <div class="ingredient-tools">
             <label class="field-label" for="ingredientSearch">
               Поиск продукта
-              <div class="search-input-wrap">
-                <input id="ingredientSearch" type="search" placeholder="Например: картофель" autocomplete="off" />
-                <button id="clearIngredientSearch" class="input-clear hidden" type="button" aria-label="Очистить поиск">×</button>
+              <div class="search-control-row">
+                <div class="search-input-wrap">
+                  <input id="ingredientSearch" type="search" placeholder="Введите первые буквы: кар, том, овся…" autocomplete="off" aria-describedby="ingredientSearchStatus" />
+                  <button id="clearIngredientSearch" class="input-clear hidden" type="button" aria-label="Очистить поиск">×</button>
+                </div>
+                <button id="addIngredientFromSearch" class="ghost-button search-add-button" type="button">Добавить</button>
               </div>
+              <small id="ingredientSearchStatus" class="search-status muted" aria-live="polite">Введите первые буквы или название продукта, затем выберите вариант.</small>
             </label>
             <label class="field-label" for="ingredientCategory">
               Категория
@@ -104,12 +109,16 @@
               <input id="servingsRange" class="portion-range" type="range" min="1" max="20" step="1" value="3" aria-label="Количество порций" />
               <div class="portion-input-row">
                 <span class="muted small-text">1</span>
-                <label class="portion-number-label">Точно
-                  <input id="servings" type="number" min="1" max="20" step="1" value="3" inputmode="numeric" />
-                </label>
+                <div class="portion-stepper" role="group" aria-label="Точное количество порций">
+                  <button id="decreaseServings" type="button" class="portion-step-button" aria-label="Уменьшить количество порций">−</button>
+                  <label class="portion-number-label">Точно
+                    <input id="servings" type="number" min="1" max="20" step="1" value="3" inputmode="numeric" aria-describedby="servingsMessage" />
+                  </label>
+                  <button id="increaseServings" type="button" class="portion-step-button" aria-label="Увеличить количество порций">+</button>
+                </div>
                 <span class="muted small-text">20</span>
               </div>
-              <p class="portion-help">Количество ингредиентов пересчитывается автоматически с бытовым округлением.</p>
+              <p id="servingsMessage" class="portion-help" aria-live="polite">Количество ингредиентов пересчитывается автоматически с бытовым округлением.</p>
             </div>
 
             <label class="field-label difficulty-field">Сложность
@@ -188,8 +197,9 @@
     </form>
   </dialog>
 
-  <script src="data/ingredients.js"></script>
-  <script src="data/recipes.js"></script>
-  <script src="app.js"></script>
+  <script src="data/ingredients.js?v=3.0-preview.5"></script>
+  <script src="data/recipes.js?v=3.0-preview.5"></script>
+  <script src="search-utils.js?v=3.0-preview.5"></script>
+  <script src="app.js?v=3.0-preview.5"></script>
 </body>
 </html>
