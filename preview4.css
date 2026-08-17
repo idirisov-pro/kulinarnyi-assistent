@@ -27,7 +27,7 @@ body {
   border-bottom-color: rgba(47,102,72,.14);
 }
 .brand-mini { display:flex; align-items:center; gap:9px; font-weight:850; color:var(--accent-dark); }
-.brand-dot { width:11px; height:11px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 5px rgba(47,102,72,.10); }
+.brand-mark { width:32px; height:32px; display:block; flex:0 0 auto; border-radius:9px; }
 .header-actions { margin-left:auto; }
 
 .app-shell { width:min(960px,100%); padding-top:26px; }
@@ -84,6 +84,7 @@ body {
 
 @media (max-width:760px) {
   .brand-mini span:last-child { display:none; }
+  .brand-mark { width:34px; height:34px; border-radius:10px; }
   .header-actions { gap:5px; }
   .compact-button { padding:8px 10px !important; }
   .flow-strip { grid-template-columns:1fr; }
