@@ -1,0 +1,40 @@
+name: apply-brand-sync
+
+on:
+  push:
+    branches: [agent/public-beta-brand-sync]
+    paths:
+      - '.github/workflows/apply-brand-sync.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/public-beta-brand-sync
+
+      - name: Apply approved logo across public beta
+        run: python3 scripts/apply-brand-sync.py
+
+      - name: Validate application
+        run: |
+          node --check app.js
+          node --check search-utils.js
+          node --check service-worker.js
+          node --check quality-check.mjs
+          node quality-check.mjs
+          node scripts/validate-data.js
+
+      - name: Commit clean brand sync
+        run: |
+          rm -f scripts/apply-brand-sync.py .github/workflows/apply-brand-sync.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Sync approved logo across public beta'
+          git push origin HEAD:agent/public-beta-brand-sync
