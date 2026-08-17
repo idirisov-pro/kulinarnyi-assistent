@@ -1,0 +1,2 @@
+Approved Product Radar logo source SHA-256 (512x512 PNG): 7b79da3d8b2e2efc1d41fec3945e0ae6203e83524821098811feac3e5e316ac4
+Source-traced SVG generated from that approved master; do not manually redraw.
