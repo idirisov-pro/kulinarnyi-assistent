@@ -1,0 +1,1 @@
+Verification target: the visible app header mark, favicon, PWA manifest icon and social preview must all resolve to `icons/icon.svg?v=brand3`, whose geometry is source-traced from the approved Product Radar master logo.
