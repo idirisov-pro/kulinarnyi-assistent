@@ -18,6 +18,7 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check app.js
+          node --check release-3.1.js
           node --check service-worker.js
           node --check quality-check.mjs
       - name: Validate build and recipe data

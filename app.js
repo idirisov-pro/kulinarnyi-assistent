@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const BUILD_VERSION = '3.0-preview.5';
+  const BUILD_VERSION = '3.1-beta.1';
   const MAX_SERVINGS = 20;
   const STORAGE = {
     kitchen: 'ka_kitchen_v4',
