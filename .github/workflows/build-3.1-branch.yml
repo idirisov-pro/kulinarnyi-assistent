@@ -1,0 +1,40 @@
+name: build-3.1-beta1-branch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-3.1-branch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Create release branch
+        run: git checkout -B next/3.1-beta1-trust-release
+      - name: Apply deterministic upgrade
+        run: node scripts/apply-v31-beta1-upgrade.mjs
+      - name: Syntax checks
+        run: |
+          node --check app.js
+          node --check release-3.1.js
+          node --check service-worker.js
+          node --check quality-check.mjs
+      - name: Product quality check
+        run: node quality-check.mjs
+      - name: Commit generated release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html app.js service-worker.js manifest.webmanifest README.md quality-check.mjs .github/workflows/quality-check.yml
+          git commit -m "feat: prepare 3.1 beta trust release"
+          git push --force-with-lease origin HEAD:next/3.1-beta1-trust-release
