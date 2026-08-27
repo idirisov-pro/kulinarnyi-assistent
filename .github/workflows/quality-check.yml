@@ -21,5 +21,8 @@ jobs:
           node --check release-3.1.js
           node --check service-worker.js
           node --check quality-check.mjs
+          node --check scripts/check-public-launch.mjs
       - name: Validate build and recipe data
         run: node quality-check.mjs
+      - name: Validate public launch pack
+        run: node scripts/check-public-launch.mjs
