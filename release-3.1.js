@@ -6,7 +6,7 @@
   const METRICS_KEY = 'ka_session_metrics_v1';
   const TRUSTED_STATUSES = new Set(['reviewed', 'cooked', 'approved']);
   const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'];
-  const P0_TELEMETRY_SCRIPT = `p0-telemetry.js?v=${RELEASE_VERSION}-p0a1`;
+  const P0_TELEMETRY_SCRIPT = `p0-telemetry.js?v=${RELEASE_VERSION}-p0a2`;
 
   function safeParse(raw, fallback = null) {
     try { return JSON.parse(raw); } catch { return fallback; }
@@ -238,97 +238,37 @@
     }, true);
   }
 
-  function selectedIngredientIds() {
-    const stored = safeParse(localStorage.getItem('ka_kitchen_v4'), null) || safeParse(localStorage.getItem('ka_kitchen_v3'), null) || {};
-    return new Set(Array.isArray(stored.selected) ? stored.selected : []);
-  }
-
-  function currentSearchSettings() {
-    const time = document.querySelector('input[name="maxTime"]:checked')?.value;
-    const mode = document.querySelector('input[name="shoppingMode"]:checked')?.value;
-    const servings = document.getElementById('servings')?.value;
-    const difficulty = document.getElementById('difficulty')?.value;
-    return {
-      selected_count: selectedIngredientIds().size,
-      max_time: time ? Number(time) : null,
-      servings: servings ? Number(servings) : null,
-      mode: mode || null,
-      difficulty: difficulty || null
-    };
-  }
-
-  function resultCounts() {
-    const cards = [...(resultsList?.querySelectorAll('article.result-card') || [])];
-    const near = cards.filter(card => card.classList.contains('near-card')).length;
-    return { exact: Math.max(0, cards.length - near), near };
-  }
-
-  function attachP0Instrumentation() {
+  function initializeP0Telemetry() {
     const telemetry = window.KA_TELEMETRY;
     if (!telemetry) return;
+
     telemetry.start({
       appVersion: RELEASE_VERSION,
       endpoint: typeof window.KA_P0_EVENT_ENDPOINT === 'string' ? window.KA_P0_EVENT_ENDPOINT : ''
     });
 
-    const selectedBox = document.getElementById('selectedChips');
-    let previousSelected = selectedIngredientIds();
-    if (selectedBox) {
-      new MutationObserver(() => {
-        const current = selectedIngredientIds();
-        const added = [...current].filter(id => !previousSelected.has(id));
-        const removed = [...previousSelected].filter(id => !current.has(id));
-        added.forEach(id => telemetry.track('ingredient_added', { ingredient_id: id, selected_count: current.size }));
-        removed.forEach(id => telemetry.track('ingredient_removed', { ingredient_id: id, selected_count: current.size }));
-        previousSelected = current;
-      }).observe(selectedBox, { childList: true, subtree: true });
-    }
+    const pending = Array.isArray(window.KA_PENDING_PRODUCT_EVENTS)
+      ? window.KA_PENDING_PRODUCT_EVENTS.splice(0, window.KA_PENDING_PRODUCT_EVENTS.length)
+      : [];
 
-    document.getElementById('searchForm')?.addEventListener('submit', () => {
-      const settings = currentSearchSettings();
-      telemetry.track('search_submitted', settings);
-      window.requestAnimationFrame(() => {
-        const counts = resultCounts();
-        if (!counts.exact && !counts.near) telemetry.track('zero_results', settings);
-        telemetry.track('results_shown', { ...settings, exact_count: counts.exact, near_count: counts.near });
-      });
-    });
-
-    document.addEventListener('click', event => {
-      const openRecipeButton = event.target.closest?.('.open-recipe');
-      if (openRecipeButton) {
-        const recipe = (window.RECIPES || []).find(item => item.id === openRecipeButton.dataset.id);
-        telemetry.track('recipe_opened', {
-          recipe_id: openRecipeButton.dataset.id || null,
-          recipe_status: recipe?.editorial?.status || null
-        });
-        return;
-      }
-
-      const startButton = event.target.closest?.('#startCooking');
-      if (startButton && !startButton.disabled) {
-        const recipeId = document.querySelector('#recipeCard .favorite-toggle')?.dataset.id || null;
-        telemetry.track('cooking_started', { recipe_id: recipeId, servings: Number(document.getElementById('servings')?.value || 0) || null });
-        return;
-      }
-
-      const nextStepButton = event.target.closest?.('#nextStep');
-      if (nextStepButton && /Я приготовил/i.test(nextStepButton.textContent || '')) {
-        const recipeId = document.querySelector('#recipeCard .favorite-toggle')?.dataset.id || null;
-        telemetry.track('cooking_completed', { recipe_id: recipeId, servings: Number(document.getElementById('servings')?.value || 0) || null });
+    pending.forEach(item => {
+      const accepted = telemetry.track(item?.eventName, item?.properties || {});
+      if (!accepted) {
+        if (!Array.isArray(window.KA_PENDING_PRODUCT_EVENTS)) window.KA_PENDING_PRODUCT_EVENTS = [];
+        window.KA_PENDING_PRODUCT_EVENTS.push(item);
       }
     });
   }
 
   function loadP0Telemetry() {
     if (window.KA_TELEMETRY) {
-      attachP0Instrumentation();
+      initializeP0Telemetry();
       return;
     }
     const script = document.createElement('script');
     script.src = P0_TELEMETRY_SCRIPT;
     script.async = true;
-    script.addEventListener('load', attachP0Instrumentation, { once: true });
+    script.addEventListener('load', initializeP0Telemetry, { once: true });
     script.addEventListener('error', () => { /* Аналитика не должна ломать приложение. */ }, { once: true });
     document.head.appendChild(script);
   }
