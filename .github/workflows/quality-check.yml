@@ -14,15 +14,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Check JavaScript syntax
         run: |
           node --check app.js
           node --check release-3.1.js
+          node --check p0-telemetry.js
           node --check service-worker.js
           node --check quality-check.mjs
+          node --check scripts/check-p0-telemetry.mjs
+          node --check scripts/check-p0-receiver.mjs
           node --check scripts/check-public-launch.mjs
+          node --check server/p0-receiver/core.mjs
+          node --check server/p0-receiver/ydb-store.mjs
+          node --check server/p0-receiver/index.js
       - name: Validate build and recipe data
         run: node quality-check.mjs
+      - name: Validate P0 telemetry
+        run: node scripts/check-p0-telemetry.mjs
+      - name: Validate P0 receiver core
+        run: node scripts/check-p0-receiver.mjs
+      - name: Validate receiver YDB dependencies
+        run: |
+          npm install --prefix server/p0-receiver --ignore-scripts --no-audit --no-fund
+          node -e "import('./server/p0-receiver/ydb-store.mjs').then(() => console.log('YDB adapter imports OK'))"
       - name: Validate public launch pack
         run: node scripts/check-public-launch.mjs

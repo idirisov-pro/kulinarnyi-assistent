@@ -6,6 +6,7 @@
   const METRICS_KEY = 'ka_session_metrics_v1';
   const TRUSTED_STATUSES = new Set(['reviewed', 'cooked', 'approved']);
   const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content'];
+  const P0_TELEMETRY_SCRIPT = `p0-telemetry.js?v=${RELEASE_VERSION}-p0a2`;
 
   function safeParse(raw, fallback = null) {
     try { return JSON.parse(raw); } catch { return fallback; }
@@ -237,9 +238,45 @@
     }, true);
   }
 
+  function initializeP0Telemetry() {
+    const telemetry = window.KA_TELEMETRY;
+    if (!telemetry) return;
+
+    telemetry.start({
+      appVersion: RELEASE_VERSION,
+      endpoint: typeof window.KA_P0_EVENT_ENDPOINT === 'string' ? window.KA_P0_EVENT_ENDPOINT : ''
+    });
+
+    const pending = Array.isArray(window.KA_PENDING_PRODUCT_EVENTS)
+      ? window.KA_PENDING_PRODUCT_EVENTS.splice(0, window.KA_PENDING_PRODUCT_EVENTS.length)
+      : [];
+
+    pending.forEach(item => {
+      const accepted = telemetry.track(item?.eventName, item?.properties || {});
+      if (!accepted) {
+        if (!Array.isArray(window.KA_PENDING_PRODUCT_EVENTS)) window.KA_PENDING_PRODUCT_EVENTS = [];
+        window.KA_PENDING_PRODUCT_EVENTS.push(item);
+      }
+    });
+  }
+
+  function loadP0Telemetry() {
+    if (window.KA_TELEMETRY) {
+      initializeP0Telemetry();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = P0_TELEMETRY_SCRIPT;
+    script.async = true;
+    script.addEventListener('load', initializeP0Telemetry, { once: true });
+    script.addEventListener('error', () => { /* Аналитика не должна ломать приложение. */ }, { once: true });
+    document.head.appendChild(script);
+  }
+
   captureAttribution();
   renderCatalogPanel();
   attachAcquisitionSignals();
   observeResults();
   if (recipeCard) new MutationObserver(() => window.requestAnimationFrame(enhanceRecipe)).observe(recipeCard, { childList: true });
+  loadP0Telemetry();
 })();

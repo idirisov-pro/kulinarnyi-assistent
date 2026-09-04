@@ -149,6 +149,28 @@
     }
   }
 
+  function trackProductEvent(eventName, properties = {}) {
+    try {
+      const accepted = window.KA_TELEMETRY?.track?.(eventName, properties);
+      if (accepted) return;
+      if (!Array.isArray(window.KA_PENDING_PRODUCT_EVENTS)) window.KA_PENDING_PRODUCT_EVENTS = [];
+      window.KA_PENDING_PRODUCT_EVENTS.push({ eventName, properties });
+      if (window.KA_PENDING_PRODUCT_EVENTS.length > 100) window.KA_PENDING_PRODUCT_EVENTS.shift();
+    } catch {
+      /* Аналитика не должна влиять на основную продуктовую логику. */
+    }
+  }
+
+  function searchEventContext(settings = getSettings()) {
+    return {
+      selected_count: state.selectedIngredients.size,
+      max_time: settings.maxTime,
+      servings: settings.servings,
+      mode: settings.shoppingMode,
+      difficulty: settings.difficulty
+    };
+  }
+
   function saveKitchen() {
     const kitchen = {
       selected: [...state.selectedIngredients],
@@ -333,6 +355,7 @@
     document.getElementById('addExclusion').addEventListener('click', () => {
       const id = excludeSelect.value;
       if (!id) return;
+      const wasSelected = state.selectedIngredients.has(id);
       state.excludedIngredients.add(id);
       state.selectedIngredients.delete(id);
       excludeSelect.value = '';
@@ -340,6 +363,7 @@
       renderSelectedIngredients();
       renderExcludedIngredients();
       saveKitchen();
+      if (wasSelected) trackProductEvent('ingredient_removed', { ingredient_id: id, selected_count: state.selectedIngredients.size, reason: 'excluded' });
     });
   }
 
@@ -446,6 +470,7 @@
   }
 
   function toggleIngredient(id) {
+    const wasSelected = state.selectedIngredients.has(id);
     if (state.excludedIngredients.has(id)) {
       state.excludedIngredients.delete(id);
       state.selectedIngredients.add(id);
@@ -455,9 +480,12 @@
     } else {
       state.selectedIngredients.add(id);
     }
+    const isSelected = state.selectedIngredients.has(id);
     renderIngredients();
     renderSelectedIngredients();
     saveKitchen();
+    if (!wasSelected && isSelected) trackProductEvent('ingredient_added', { ingredient_id: id, selected_count: state.selectedIngredients.size });
+    if (wasSelected && !isSelected) trackProductEvent('ingredient_removed', { ingredient_id: id, selected_count: state.selectedIngredients.size });
   }
 
   function renderSelectedIngredients() {
@@ -638,6 +666,9 @@
     }
 
     const { maxTime, difficulty, shoppingMode: mode, servings } = getSettings();
+    const settings = { maxTime, difficulty, shoppingMode: mode, servings };
+    const eventContext = searchEventContext(settings);
+    trackProductEvent('search_submitted', eventContext);
     saveSettings();
     const evaluated = window.RECIPES
       .map(recipe => evaluateRecipe(recipe, maxTime, difficulty, mode))
@@ -652,6 +683,10 @@
       .filter(item => !item.eligible)
       .sort((a, b) => b.closeness - a.closeness)
       .slice(0, 4);
+
+    const resultEvent = { ...eventContext, exact_count: state.results.length, near_count: state.nearMatches.length };
+    if (!state.results.length && !state.nearMatches.length) trackProductEvent('zero_results', eventContext);
+    trackProductEvent('results_shown', resultEvent);
 
     const foundText = state.results.length
       ? `${recipesLabel(state.results.length)} ${state.results.length === 1 ? 'подходит' : 'подходят'}`
@@ -889,9 +924,10 @@
     return refinedStep(recipe, firstIndex);
   }
 
-  function openRecipe(id) {
+  function openRecipe(id, options = {}) {
     const recipe = window.RECIPES.find(item => item.id === id);
     if (!recipe) return;
+    const recordOpen = options.recordOpen !== false;
     state.currentRecipe = recipe;
     const settings = getSettings();
     const evaluation = analyzeRecipe(recipe, 999, 'any', 'flexible');
@@ -951,10 +987,13 @@
 
     recipeCard.querySelector('.favorite-toggle').addEventListener('click', () => {
       toggleFavorite(recipe.id);
-      openRecipe(recipe.id);
+      openRecipe(recipe.id, { recordOpen: false });
     });
     document.getElementById('startCooking').addEventListener('click', startCooking);
-    recordHistory({ type: 'recipe_opened', at: new Date().toISOString(), recipe: recipe.id, servings: selectedServings, session: state.lastSessionCode });
+    if (recordOpen) {
+      trackProductEvent('recipe_opened', { recipe_id: recipe.id, recipe_status: recipe.editorial?.status || null, servings: selectedServings });
+      recordHistory({ type: 'recipe_opened', at: new Date().toISOString(), recipe: recipe.id, servings: selectedServings, session: state.lastSessionCode });
+    }
     showView('recipe');
   }
 
@@ -973,7 +1012,9 @@
     stopTimer();
     requestWakeLock();
     renderCookingStep();
-    recordHistory({ type: 'cooking_started', at: new Date().toISOString(), recipe: state.currentRecipe.id, servings: getSettings().servings, session: state.lastSessionCode });
+    const servings = getSettings().servings;
+    trackProductEvent('cooking_started', { recipe_id: state.currentRecipe.id, servings });
+    recordHistory({ type: 'cooking_started', at: new Date().toISOString(), recipe: state.currentRecipe.id, servings, session: state.lastSessionCode });
     showView('cooking');
   }
 
@@ -1004,7 +1045,9 @@
         renderCookingStep();
       } else {
         await releaseWakeLock();
-        recordHistory({ type: 'cooking_completed', at: new Date().toISOString(), recipe: recipe.id, servings: getSettings().servings, session: state.lastSessionCode });
+        const servings = getSettings().servings;
+        trackProductEvent('cooking_completed', { recipe_id: recipe.id, servings });
+        recordHistory({ type: 'cooking_completed', at: new Date().toISOString(), recipe: recipe.id, servings, session: state.lastSessionCode });
         openFeedback('cooking');
       }
     });
@@ -1223,10 +1266,12 @@
   document.querySelectorAll('input[name="maxTime"], input[name="shoppingMode"]').forEach(input => input.addEventListener('change', saveSettings));
   document.getElementById('difficulty').addEventListener('change', saveSettings);
   document.getElementById('clearIngredients').addEventListener('click', () => {
+    const removedIds = [...state.selectedIngredients];
     state.selectedIngredients.clear();
     renderIngredients();
     renderSelectedIngredients();
     saveKitchen();
+    removedIds.forEach(id => trackProductEvent('ingredient_removed', { ingredient_id: id, selected_count: 0, reason: 'clear_all' }));
   });
   document.querySelectorAll('[data-nav]').forEach(button => button.addEventListener('click', () => {
     const target = button.dataset.nav;
