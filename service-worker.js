@@ -1,4 +1,4 @@
-const CACHE_NAME = 'culinary-assistant-v3-1-beta-1-trust-release-brand-3';
+const CACHE_NAME = 'culinary-assistant-v3-1-beta-1-trust-release-brand-3-p0a2';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,7 @@ const ASSETS = [
   './preview6.css?v=3.1-beta.1',
   './app.js?v=3.1-beta.1',
   './release-3.1.js?v=3.1-beta.1',
+  './p0-telemetry.js?v=3.1-beta.1-p0a2',
   './search-utils.js?v=3.1-beta.1',
   './manifest.webmanifest?v=3.1-beta.1-brand3',
   './data/ingredients.js?v=3.1-beta.1',
