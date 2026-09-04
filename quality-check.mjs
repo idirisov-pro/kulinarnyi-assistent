@@ -7,7 +7,7 @@ const results = [];
 const check = (name, passed, detail) => results.push({name, passed, detail});
 
 const requiredFiles = [
-  'index.html','styles.css','preview4.css','preview5.css','preview6.css','search-utils.js','release-3.1.js','app.js','service-worker.js','manifest.webmanifest',
+  'index.html','styles.css','preview4.css','preview5.css','preview6.css','search-utils.js','release-3.1.js','p0-telemetry.js','app.js','service-worker.js','manifest.webmanifest',
   'data/ingredients.js','data/recipes.js','icons/icon-192.png','icons/icon-512.png'
 ];
 check('PWA-файлы', requiredFiles.every(file => fs.existsSync(path.join(root,file))), `${requiredFiles.length} обязательных файлов`);
@@ -39,6 +39,7 @@ const css5 = fs.readFileSync(path.join(root,'preview5.css'),'utf8');
 const readme = fs.readFileSync(path.join(root,'README.md'),'utf8');
 const css6 = fs.readFileSync(path.join(root,'preview6.css'),'utf8');
 const release31 = fs.readFileSync(path.join(root,'release-3.1.js'),'utf8');
+const telemetry = fs.readFileSync(path.join(root,'p0-telemetry.js'),'utf8');
 
 check('Маркер сборки', html.includes('3.1-beta.1') && app.includes("BUILD_VERSION = '3.1-beta.1'") && sw.includes('v3-1-beta-1'), 'HTML, приложение и кэш согласованы');
 check('Версионные ресурсы', html.includes('app.js?v=3.1-beta.1') && html.includes('search-utils.js?v=3.1-beta.1') && sw.includes('app.js?v=3.1-beta.1'), 'старый PWA-кэш не маскирует новую сборку');
@@ -77,9 +78,31 @@ check('Прозрачность каталога 3.1', release31.includes('catal
 check('Разделение черновиков 3.1', release31.includes('experimental-results') && release31.includes("new Set(['reviewed', 'cooked', 'approved'])"), 'черновики вынесены отдельно от более надёжных рецептов');
 check('Объяснимый подбор 3.1', release31.includes('Почему подходит') && release31.includes('directMatchNames'), 'карточка объясняет прямые совпадения по продуктам');
 check('Честная пустая выдача 3.1', release31.includes('отсутствие результата может означать только то') && release31.includes('catalog-limit-note'), 'ограниченность каталога не маскируется');
-check('Локальная UTM-атрибуция 3.1', release31.includes('utm_source') && release31.includes('sessionStorage') && !/\bfetch\s*\(/.test(release31) && !release31.includes('XMLHttpRequest'), 'источник теста сохраняется локально без автоматической сетевой аналитики');
+check('Локальная UTM-атрибуция 3.1', release31.includes('utm_source') && release31.includes('sessionStorage') && !/\bfetch\s*\(/.test(release31) && !release31.includes('XMLHttpRequest'), 'источник теста сохраняется локально без автоматической сетевой аналитики в основном слое релиза');
 check('Стили 3.1', css6.includes('.experimental-results') && css6.includes('.why-fit-box') && css6.includes('.catalog-state-panel'), 'слой доверия адаптирован для интерфейса');
 check('PWA-ресурсы 3.1', sw.includes('preview6.css?v=3.1-beta.1') && sw.includes('release-3.1.js?v=3.1-beta.1'), 'новый слой входит в offline cache');
+
+check('P0-события из продуктовой логики',
+  app.includes("trackProductEvent('ingredient_added'") &&
+  app.includes("trackProductEvent('ingredient_removed'") &&
+  app.includes("trackProductEvent('search_submitted'") &&
+  app.includes("trackProductEvent('results_shown'") &&
+  app.includes("trackProductEvent('zero_results'") &&
+  app.includes("trackProductEvent('recipe_opened'") &&
+  app.includes("trackProductEvent('cooking_started'") &&
+  app.includes("trackProductEvent('cooking_completed'"),
+  'ключевые события вызываются непосредственно из функций приложения');
+check('P0 без DOM-наблюдения за действиями',
+  !release31.includes('attachP0Instrumentation') && !release31.includes('currentSearchSettings') && !release31.includes('resultCounts'),
+  'слой релиза только запускает модуль и сбрасывает накопленные события');
+check('P0 без ложной фиксации отзыва',
+  !app.includes("trackProductEvent('feedback_submitted'") && telemetry.includes("'feedback_submitted'"),
+  'событие зарезервировано, но не создаётся до подтверждённого центрального сохранения');
+check('P0 без жёстко заданного приёмника',
+  telemetry.includes("let endpoint = ''") && telemetry.includes("options.endpoint") && !telemetry.includes('collector.example'),
+  'адрес приёмника задаётся конфигурацией, а не вшит в клиент');
+check('P0 идентификаторы событий', telemetry.includes('event_id: randomId') && telemetry.includes('sentIds'), 'очередь удаляет только подтверждённо отправленные события');
+check('P0 источник на сеанс', telemetry.includes('sessionStorage.getItem(SESSION.source)') && telemetry.includes('captureSessionSource'), 'источник не закрепляется навечно за установкой');
 
 const failed = results.filter(item => !item.passed);
 console.log(JSON.stringify({version:'3.1-beta.1', passed:failed.length === 0, results}, null, 2));
