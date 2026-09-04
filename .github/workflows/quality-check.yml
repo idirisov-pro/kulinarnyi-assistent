@@ -19,10 +19,14 @@ jobs:
         run: |
           node --check app.js
           node --check release-3.1.js
+          node --check p0-telemetry.js
           node --check service-worker.js
           node --check quality-check.mjs
+          node --check scripts/check-p0-telemetry.mjs
           node --check scripts/check-public-launch.mjs
       - name: Validate build and recipe data
         run: node quality-check.mjs
+      - name: Validate P0 telemetry
+        run: node scripts/check-p0-telemetry.mjs
       - name: Validate public launch pack
         run: node scripts/check-public-launch.mjs
